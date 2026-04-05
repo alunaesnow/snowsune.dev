@@ -1,0 +1,44 @@
+[package]
+name = "rs"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[profile.release]
+lto = "fat"
+strip = true
+opt-level = 's'
+codegen-units = 1
+panic = "abort"
+
+[dependencies]
+console_error_panic_hook = "0.1.7"
+js-sys = "0.3.81"
+serde = { version = "1.0.228", features = ["derive"] }
+serde-wasm-bindgen = "0.6.5"
+serde_bytes = "0.11.19"
+serde_json = "1.0.145"
+tsify = { version = "0.5.6", features = ["js"] }
+wasm-bindgen = "0.2.104"
+wasm-bindgen-futures = "0.4.54"
+
+[dependencies.web-sys]
+version = "0.3.81"
+features = [
+    'Headers',
+    'Request',
+    'RequestInit',
+    # 'RequestMode',
+    'Response',
+    'Window',
+    # 'Blob',
+    'console',
+]
+
+[package.metadata.wasm-pack.profile.profiling]
+wasm-opt = ['-Os', '--enable-bulk-memory', '--all-features']
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ['-Os', '--enable-bulk-memory', '--all-features']
