@@ -1,10 +1,12 @@
 <script lang="ts">
 	import AnimatedScene from '$lib/components/AnimatedScene.svelte';
+	import { HyperObject } from '$lib/scripts/hyperobject';
 	import * as THREE from 'three';
 	import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 	let scene: THREE.Scene, camera: THREE.PerspectiveCamera, renderer: THREE.WebGLRenderer;
 	let cube: THREE.Mesh;
+	let hyperobject: HyperObject;
 
 	function init(canvas: HTMLCanvasElement, width: number, height: number) {
 		// ////////// Inital Setup //////////
@@ -31,7 +33,7 @@
 		const ambientLight = new THREE.AmbientLight(0xd1d1d1, 0.75 * Math.PI);
 		scene.add(ambientLight);
 
-		const directionalLight = new THREE.PointLight(0xffffff, 1 * Math.PI, 0, 0);
+		const directionalLight = new THREE.PointLight(0xffffff, 0.75 * Math.PI, 0, 0);
 		directionalLight.position.y = 10;
 		scene.add(directionalLight);
 
@@ -52,15 +54,20 @@
 		cube.rotation.x = 22.5;
 		cube.rotation.y = 45;
 
-		scene.add(cube);
+		// scene.add(cube);
+
+		////////// HyperObject //////////
+
+		hyperobject = new HyperObject(scene);
+		hyperobject.loadPoly('x x x x');
 	}
 
 	function frame(delta: number) {
 		renderer.render(scene, camera);
 
-		let time = performance.now();
-		cube.rotation.x = time / 2000;
-		cube.rotation.y = time / 1000;
+		// let time = performance.now();
+		// cube.rotation.x = time / 2000;
+		// cube.rotation.y = time / 1000;
 	}
 
 	function resize(_canvas: HTMLCanvasElement, width: number, height: number) {
