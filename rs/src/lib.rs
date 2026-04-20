@@ -1,3 +1,5 @@
+use ndarray::{Array2, s};
+use polygen::PolytopeBuilder;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen(start)]
@@ -5,33 +7,19 @@ fn start() {
     console_error_panic_hook::set_once();
 }
 
-#[wasm_bindgen]
-pub fn fib(n: i32) -> i32 {
-    if n <= 0 {
-        return 0;
-    } else if n == 1 {
-        return 1;
-    } else {
-        return fib(n - 1) + fib(n - 2);
-    }
-}
+// struct Rotor4D {
 
-#[wasm_bindgen]
-pub fn vectest(mul: u8) -> *const u8 {
-    let mut a = vec![0u8; 10];
-    for i in 0..10u8 {
-        a[i as usize] = i * mul;
-    }
-    return a.as_ptr();
-}
+// }
 
 #[wasm_bindgen]
 struct HyperObjectWasm {
     n_vert: usize,
     n_edge: usize,
+    n_face: usize,
 
-    vertices: Vec<f32>,
-    edges: Vec<usize>,
+    vertices: Array2<f32>,
+    edge_vert: Vec<Vec<usize>>,
+    face_vert: Vec<Vec<usize>>,
 
     vertex_depth_attr: Vec<f32>,
     vertex_instance_matricies: Vec<f32>,
@@ -44,9 +32,19 @@ struct HyperObjectWasm {
 #[wasm_bindgen]
 impl HyperObjectWasm {
     #[wasm_bindgen(constructor)]
-    pub fn new(vertices: Vec<f32>, edges: Vec<usize>) -> HyperObjectWasm {
-        let n_vert = vertices.len() / 4;
-        let n_edge = edges.len() / 2;
+    pub fn new(diagram: &str) -> HyperObjectWasm {
+        let polytope = PolytopeBuilder::from_diagram(diagram)
+            .normalize(true)
+            .build()
+            .unwrap();
+
+        let vertices = polytope.vertices.map(|&el| el as f32);
+        let edge_vert = polytope.subelements(1, 0).unwrap();
+        let face_vert = polytope.subelements(2, 0).unwrap();
+
+        let n_vert = vertices.nrows();
+        let n_edge = edge_vert.len();
+        let n_face = face_vert.len();
 
         let vertex_depth_attr = vec![0f32; n_vert];
         let edge_depth1_attr = vec![0f32; n_edge];
@@ -75,8 +73,10 @@ impl HyperObjectWasm {
         HyperObjectWasm {
             n_vert,
             n_edge,
+            n_face,
             vertices,
-            edges,
+            edge_vert,
+            face_vert,
             vertex_depth_attr,
             edge_depth1_attr,
             edge_depth2_attr,
@@ -87,16 +87,17 @@ impl HyperObjectWasm {
 
     pub fn update(&mut self) {
         ///// INSTANCE MATRICIES /////
-        let vert3d = perspective_project4(&self.vertices, -2f32, 2f32);
+        let vert3d = perspective_project(&self.vertices, -2f32);
 
         let earr = &mut self.edge_instance_matricies;
         for i in 0..self.n_edge {
-            let o0 = self.edges[i * 2] * 3;
-            let o1 = self.edges[i * 2 + 1] * 3;
+            let e = &self.edge_vert[i];
+            let v0 = vert3d.row(e[0]);
+            let v1 = vert3d.row(e[1]);
 
-            let mut fx = vert3d[o0] - vert3d[o1];
-            let mut fy = vert3d[o0 + 1] - vert3d[o1 + 1];
-            let mut fz = vert3d[o0 + 2] - vert3d[o1 + 2];
+            let mut fx = v0[0] - v1[0];
+            let mut fy = v0[1] - v1[1];
+            let mut fz = v0[2] - v1[2];
             let magf = (fx * fx + fy * fy + fz * fz).sqrt();
 
             fx /= magf;
@@ -134,18 +135,18 @@ impl HyperObjectWasm {
             earr[o + 9] = fy * magf;
             earr[o + 10] = fz * magf;
 
-            earr[o + 12] = vert3d[o0];
-            earr[o + 13] = vert3d[o0 + 1];
-            earr[o + 14] = vert3d[o0 + 2];
+            earr[o + 12] = v0[0];
+            earr[o + 13] = v0[1];
+            earr[o + 14] = v0[2];
         }
 
         let varr = &mut self.vertex_instance_matricies;
         for i in 0..self.n_vert {
-            let o3 = i * 3;
+            let v = vert3d.row(i);
             let o16 = i * 16;
-            varr[o16 + 12] = vert3d[o3];
-            varr[o16 + 13] = vert3d[o3 + 1];
-            varr[o16 + 14] = vert3d[o3 + 2];
+            varr[o16 + 12] = v[0];
+            varr[o16 + 13] = v[1];
+            varr[o16 + 14] = v[2];
         }
 
         ///// DEPTHS /////
@@ -153,47 +154,41 @@ impl HyperObjectWasm {
         let max_w = 1f32;
         for i in 0..self.n_vert {
             self.vertex_depth_attr[i] =
-                ((self.vertices[i * 4 + 3] / max_w + 1f32) / 2f32).clamp(0f32, 1f32);
+                ((self.vertices[[i, 3]] / max_w + 1f32) / 2f32).clamp(0f32, 1f32);
         }
 
         // update edge depths
         for i in 0..self.n_edge {
-            let o = i * 2;
-            self.edge_depth1_attr[i] = self.vertex_depth_attr[self.edges[o]];
-            self.edge_depth2_attr[i] = self.vertex_depth_attr[self.edges[o + 1]];
+            let e = &self.edge_vert[i];
+            self.edge_depth1_attr[i] = self.vertex_depth_attr[e[0]];
+            self.edge_depth2_attr[i] = self.vertex_depth_attr[e[1]];
         }
     }
 
     pub fn get_arr_pointers(&self) -> Vec<F32ArrSizedPointer> {
         vec![
-            pointerify_f32_arr(&self.vertex_depth_attr),
-            pointerify_f32_arr(&self.vertex_instance_matricies),
+            F32ArrSizedPointer::new(&self.vertex_depth_attr),
+            F32ArrSizedPointer::new(&self.vertex_instance_matricies),
         ]
     }
 
     pub fn get_edge_mat_pointers(&self) -> Vec<F32ArrSizedPointer> {
         vec![
-            pointerify_f32_arr(&self.edge_depth1_attr),
-            pointerify_f32_arr(&self.edge_depth2_attr),
-            pointerify_f32_arr(&self.edge_instance_matricies),
+            F32ArrSizedPointer::new(&self.edge_depth1_attr),
+            F32ArrSizedPointer::new(&self.edge_depth2_attr),
+            F32ArrSizedPointer::new(&self.edge_instance_matricies),
         ]
     }
 }
 
-fn perspective_project4(points4d: &Vec<f32>, cam_dist: f32, plane_offset: f32) -> Vec<f32> {
-    let n_points = points4d.len() / 4;
-    let mut points3d = vec![0f32; n_points * 3];
-    for i in 0..n_points {
-        let o4d = i * 4;
-        let o3d: usize = i * 3;
-        let d: f32 = plane_offset / (points4d[o4d + 3] - cam_dist);
-        points3d[o3d] = points4d[o4d] * d;
-        points3d[o3d + 1] = points4d[o4d + 1] * d;
-        points3d[o3d + 2] = points4d[o4d + 2] * d;
-    }
-
-    points3d
+fn perspective_project(points: &Array2<f32>, cam_dist: f32) -> Array2<f32> {
+    let f = 2.0f32 / (&points.column(points.ncols() - 1) - cam_dist);
+    let points_slice = points.slice(s![.., ..-1]);
+    &points_slice * &f.broadcast((points_slice.ncols(), f.len())).unwrap().t()
 }
+
+#[wasm_bindgen]
+pub struct HyperObjectPointers {}
 
 #[wasm_bindgen]
 pub struct F32ArrSizedPointer {
@@ -201,9 +196,42 @@ pub struct F32ArrSizedPointer {
     pub length: usize,
 }
 
-fn pointerify_f32_arr(arr: &Vec<f32>) -> F32ArrSizedPointer {
-    F32ArrSizedPointer {
-        pointer: arr.as_ptr(),
-        length: arr.len(),
+impl F32ArrSizedPointer {
+    fn new(arr: &Vec<f32>) -> Self {
+        Self {
+            pointer: arr.as_ptr(),
+            length: arr.len(),
+        }
     }
 }
+
+// struct Vectors {
+//     data: Vec<f32>,
+//     itemSize: usize,
+//     itemCount: usize,
+// }
+
+// impl Vectors {
+//     pub fn new(data: Vec<f32>, itemSize: usize) -> Self {
+//         Self {
+//             itemSize,
+//             itemCount: data.len() / itemSize,
+//             data,
+//         }
+//     }
+
+//     /// plane_offset is usually 2
+//     pub fn perspective_project(&self, cam_dist: f32, plane_offset: f32) -> Vectors {
+//         let mut proj_data = vec![0f32; self.itemCount * self.itemSize - 1];
+//         for i in 0..self.itemCount {
+//             let o = i * self.itemSize;
+//             let o_proj: usize = i * (self.itemSize - 1);
+//             let d: f32 = plane_offset / (self.data[o + self.itemSize - 1] - cam_dist);
+//             proj_data[o_proj] = self.data[o] * d;
+//             proj_data[o_proj + 1] = self.data[o + 1] * d;
+//             proj_data[o_proj + 2] = self.data[o + 2] * d;
+//         }
+
+//         Vectors::new(proj_data, self.itemSize - 1)
+//     }
+// }

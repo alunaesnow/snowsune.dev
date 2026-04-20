@@ -1,10 +1,8 @@
 import * as THREE from 'three';
-import { polygen, type Polytope } from './polygen';
 import { HyperObjectWasm } from '$lib/pkg/rs';
 import { memory } from '$lib/pkg/rs_bg.wasm';
 
 export class HyperObject {
-	poly: Polytope | undefined;
 	wasm: HyperObjectWasm | undefined;
 
 	scene: THREE.Scene;
@@ -31,12 +29,7 @@ export class HyperObject {
 	}
 
 	loadPoly(diagram: string) {
-		this.poly = polygen(diagram, true);
-
-		const flatVert = this.poly.vertices.flat();
-		const flatEdges = this.poly.edges.flat();
-
-		this.wasm = new HyperObjectWasm(new Float32Array(flatVert), new Uint32Array(flatEdges));
+		this.wasm = new HyperObjectWasm(diagram);
 		this.wasm.update();
 
 		// TODO: Make these modifiable
@@ -47,7 +40,7 @@ export class HyperObject {
 		};
 
 		/// Create vertices
-		const vertexGeometry = new THREE.SphereGeometry(0.045, 16, 16);
+		const vertexGeometry = new THREE.SphereGeometry(0.035, 16, 16);
 		const vertexMaterial = new THREE.MeshPhongMaterial({ shininess: 100 });
 		vertexMaterial.onBeforeCompile = (shader) => {
 			shader.uniforms = { ...shader.uniforms, ...extraUniforms };
@@ -91,7 +84,7 @@ export class HyperObject {
 		const vertexMesh = new THREE.InstancedMesh(
 			vertexGeometry,
 			vertexMaterial,
-			this.poly.vertices.length
+			Math.floor(instances.length / 16)
 		);
 		vertexMesh.instanceMatrix = new THREE.InstancedBufferAttribute(
 			new Float32Array(memory.buffer, instances.pointer, instances.length),
@@ -105,7 +98,7 @@ export class HyperObject {
 
 		// edges
 		// const edgeData = getEdgesFromFaces(faces);
-		const edgeGeometry = new THREE.CylinderGeometry(0.045, 0.045, 1, 16, 1, true);
+		const edgeGeometry = new THREE.CylinderGeometry(0.035, 0.035, 1, 16, 1, true);
 		edgeGeometry.rotateX(-Math.PI / 2);
 		edgeGeometry.translate(0, 0, -0.5);
 		const edgeMaterial = new THREE.MeshPhongMaterial({
@@ -163,7 +156,11 @@ export class HyperObject {
 			1
 		);
 		edgeGeometry.setAttribute('depth2', edgeDepth2Attribute);
-		const edgeMesh = new THREE.InstancedMesh(edgeGeometry, edgeMaterial, this.poly.edges.length);
+		const edgeMesh = new THREE.InstancedMesh(
+			edgeGeometry,
+			edgeMaterial,
+			Math.floor(instances2.length / 16)
+		);
 		edgeMesh.instanceMatrix = new THREE.InstancedBufferAttribute(
 			new Float32Array(memory.buffer, instances2.pointer, instances2.length),
 			16

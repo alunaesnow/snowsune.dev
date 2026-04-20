@@ -59,7 +59,7 @@
 		////////// HyperObject //////////
 
 		hyperobject = new HyperObject(scene);
-		hyperobject.loadPoly('x x x x');
+		hyperobject.loadPoly('x4x3o3o');
 	}
 
 	function frame(delta: number) {
