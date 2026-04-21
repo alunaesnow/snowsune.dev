@@ -60,9 +60,17 @@
 
 		hyperobject = new HyperObject(scene);
 		hyperobject.loadPoly('x4x3o3o');
+
+		// hyperobject.rotate(Math.PI / 4);
+		// hyperobject.update();
 	}
 
 	function frame(delta: number) {
+		hyperobject.rotate(delta * 0.00025);
+		hyperobject.update();
+
+		// const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 		renderer.render(scene, camera);
 
 		// let time = performance.now();

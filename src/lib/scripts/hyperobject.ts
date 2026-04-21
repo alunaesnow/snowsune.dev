@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { HyperObjectWasm } from '$lib/pkg/rs';
+import { F32ArrSizedPointer, HyperObjectWasm } from '$lib/pkg/rs';
 import { memory } from '$lib/pkg/rs_bg.wasm';
 
 export class HyperObject {
@@ -76,20 +76,9 @@ export class HyperObject {
 
 		const [depths, instances] = this.wasm.get_arr_pointers();
 
-		const vertexDepthAttribute = new THREE.InstancedBufferAttribute(
-			new Float32Array(memory.buffer, depths.pointer, depths.length),
-			1
-		);
+		const vertexDepthAttribute = f32WasmIBA(depths, 1);
 		vertexGeometry.setAttribute('depth', vertexDepthAttribute);
-		const vertexMesh = new THREE.InstancedMesh(
-			vertexGeometry,
-			vertexMaterial,
-			Math.floor(instances.length / 16)
-		);
-		vertexMesh.instanceMatrix = new THREE.InstancedBufferAttribute(
-			new Float32Array(memory.buffer, instances.pointer, instances.length),
-			16
-		);
+		const vertexMesh = patchedInstancedMesh(vertexGeometry, vertexMaterial, instances);
 		this.scene.add(vertexMesh);
 		this.vertex = { mesh: vertexMesh, depthAttribute: vertexDepthAttribute };
 
@@ -146,28 +135,14 @@ export class HyperObject {
 
 		const [depth1s, depth2s, instances2] = this.wasm.get_edge_mat_pointers();
 
-		const edgeDepth1Attribute = new THREE.InstancedBufferAttribute(
-			new Float32Array(memory.buffer, depth1s.pointer, depth1s.length),
-			1
-		);
+		const edgeDepth1Attribute = f32WasmIBA(depth1s, 1);
 		edgeGeometry.setAttribute('depth1', edgeDepth1Attribute);
-		const edgeDepth2Attribute = new THREE.InstancedBufferAttribute(
-			new Float32Array(memory.buffer, depth2s.pointer, depth2s.length),
-			1
-		);
+		const edgeDepth2Attribute = f32WasmIBA(depth2s, 1);
 		edgeGeometry.setAttribute('depth2', edgeDepth2Attribute);
-		const edgeMesh = new THREE.InstancedMesh(
-			edgeGeometry,
-			edgeMaterial,
-			Math.floor(instances2.length / 16)
-		);
-		edgeMesh.instanceMatrix = new THREE.InstancedBufferAttribute(
-			new Float32Array(memory.buffer, instances2.pointer, instances2.length),
-			16
-		);
+		const edgeMesh = patchedInstancedMesh(edgeGeometry, edgeMaterial, instances2);
 		this.scene.add(edgeMesh);
 		this.edge = {
-			mesh: vertexMesh,
+			mesh: edgeMesh,
 			depth1Attribute: edgeDepth1Attribute,
 			depth2Attribute: edgeDepth2Attribute
 		};
@@ -176,4 +151,40 @@ export class HyperObject {
 		depth2s.free();
 		instances2.free();
 	}
+
+	update() {
+		this.wasm?.update();
+
+		if (this.vertex) {
+			this.vertex.mesh.instanceMatrix.needsUpdate = true;
+			this.vertex.depthAttribute.needsUpdate = true;
+		}
+
+		if (this.edge) {
+			this.edge.mesh.instanceMatrix.needsUpdate = true;
+			this.edge.depth1Attribute.needsUpdate = true;
+			this.edge.depth2Attribute.needsUpdate = true;
+		}
+	}
+
+	rotate(theta: number) {
+		this.wasm?.rotate(theta);
+	}
+}
+
+function patchedInstancedMesh(
+	geometry: THREE.BufferGeometry,
+	material: THREE.Material,
+	instances: F32ArrSizedPointer
+): THREE.InstancedMesh {
+	const mesh = new THREE.InstancedMesh(geometry, material, Math.floor(instances.length / 16));
+	mesh.instanceMatrix = f32WasmIBA(instances, 16);
+	return mesh;
+}
+
+function f32WasmIBA(ptr: F32ArrSizedPointer, item_size: number): THREE.InstancedBufferAttribute {
+	return new THREE.InstancedBufferAttribute(
+		new Float32Array(memory.buffer, ptr.pointer, ptr.length),
+		item_size
+	);
 }
