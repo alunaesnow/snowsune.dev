@@ -60,6 +60,7 @@
 		////////// HyperObject //////////
 
 		polytope = new Polytope(scene, 'x5x3x3x');
+		// polytope = new Polytope(scene, 'x4o3o3o');
 
 		// hyperobject.rotate(Math.PI / 4);
 		// hyperobject.update();

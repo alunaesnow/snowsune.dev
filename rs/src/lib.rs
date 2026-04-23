@@ -40,9 +40,11 @@ struct PolytopeWasm {
 
     vertex_depths: Vec<f32>,
 
+    edge_from: Vec<f32>,
+    edge_to: Vec<f32>,
+
     edge_depth1s: Vec<f32>,
     edge_depth2s: Vec<f32>,
-    edge_instances: Vec<f32>,
 
     vertex_positions: Vec<f32>,
 
@@ -86,17 +88,9 @@ impl PolytopeWasm {
         let edge_depth1s = vec![0f32; n_edge];
         let edge_depth2s = vec![0f32; n_edge];
 
-        let mut edge_instances = vec![0f32; n_edge * 16];
         let vertex_positions = vec![0f32; n_vert * 3];
-
-        // set instance matricies to default (identity)
-        for i in 0..n_edge {
-            let o = i * 16;
-            edge_instances[o] = 1f32;
-            edge_instances[o + 5] = 1f32;
-            edge_instances[o + 10] = 1f32;
-            edge_instances[o + 15] = 1f32;
-        }
+        let edge_from = vec![0f32; n_edge * 3];
+        let edge_to = vec![0f32; n_edge * 3];
 
         PolytopeWasm {
             n_vert,
@@ -108,7 +102,8 @@ impl PolytopeWasm {
             vertex_depths,
             edge_depth1s,
             edge_depth2s,
-            edge_instances,
+            edge_from,
+            edge_to,
             vertex_positions,
             axes: Array2::<f32>::eye(4),
             world_axes: Array2::<f32>::eye(4),
@@ -124,55 +119,18 @@ impl PolytopeWasm {
         ///// INSTANCE MATRICIES /////
         let vert3d = perspective_project(&self.vertices, -2f32);
 
-        let earr = &mut self.edge_instances;
         for i in 0..self.n_edge {
+            let o3 = i * 3;
             let e = &self.edge_vert[i];
             let v0 = vert3d.row(e[0]);
             let v1 = vert3d.row(e[1]);
 
-            let mut fx = v0[0] - v1[0];
-            let mut fy = v0[1] - v1[1];
-            let mut fz = v0[2] - v1[2];
-            let magf = (fx * fx + fy * fy + fz * fz).sqrt();
-
-            fx /= magf;
-            fy /= magf;
-            fz /= magf;
-
-            let mut ux = 1f32;
-            let mut uy = 0f32;
-            // uz is always 0
-            let mut rx = 0f32;
-            let mut ry = 1f32;
-            let mut rz = 0f32;
-
-            if (1f32 - fz).abs() < 1e-15f32 {
-                ry = -1f32;
-            } else if !((-1f32 - fz).abs() < 1e-15f32) {
-                let d = (1f32 - fz * fz).sqrt();
-                ux = -fy / d;
-                uy = fx / d;
-                rx = uy * fz;
-                ry = -ux * fz;
-                rz = ux * fy - uy * fx;
-            }
-
-            let o = i * 16;
-            earr[o] = rx;
-            earr[o + 1] = ry;
-            earr[o + 2] = rz;
-
-            earr[o + 4] = ux;
-            earr[o + 5] = uy;
-            // earr[o + 6] = uz; but uz is always 0
-
-            earr[o + 8] = fx * magf;
-            earr[o + 9] = fy * magf;
-            earr[o + 10] = fz * magf;
-
-            earr[o + 12] = v0[0];
-            earr[o + 13] = v0[1];
-            earr[o + 14] = v0[2];
+            self.edge_from[o3] = v0[0];
+            self.edge_from[o3 + 1] = v0[1];
+            self.edge_from[o3 + 2] = v0[2];
+            self.edge_to[o3] = v1[0];
+            self.edge_to[o3 + 1] = v1[1];
+            self.edge_to[o3 + 2] = v1[2];
         }
 
         for i in 0..self.n_vert {
@@ -226,10 +184,11 @@ impl PolytopeWasm {
     pub fn get_render_data_refs(&self) -> RenderDataRefs {
         RenderDataRefs {
             vertex_depths: self.vertex_depths.as_array_ref(),
-            edge_instances: self.edge_instances.as_array_ref(),
             edge_depth1s: self.edge_depth1s.as_array_ref(),
             edge_depth2s: self.edge_depth2s.as_array_ref(),
             vertex_positions: self.vertex_positions.as_array_ref(),
+            edge_from: self.edge_from.as_array_ref(),
+            edge_to: self.edge_to.as_array_ref(),
         }
     }
 
@@ -262,11 +221,13 @@ impl PolytopeWasm {
 pub struct RenderDataRefs {
     vertex_depths: ArrayRef,
 
-    edge_instances: ArrayRef,
     edge_depth1s: ArrayRef,
     edge_depth2s: ArrayRef,
 
     vertex_positions: ArrayRef,
+
+    edge_from: ArrayRef,
+    edge_to: ArrayRef,
 }
 
 #[derive(Tsify, Serialize)]

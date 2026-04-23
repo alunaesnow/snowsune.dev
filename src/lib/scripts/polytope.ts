@@ -1,6 +1,96 @@
 import * as THREE from 'three';
 import { PolytopeWasm, type ArrayRef } from '$lib/pkg/rs';
 import { memory } from '$lib/pkg/rs_bg.wasm';
+import CustomShaderMaterial from 'three-custom-shader-material/vanilla';
+
+const VERTEX_VERTEXSHADER = `
+uniform float depthScaling;
+
+varying float vDepth;
+
+attribute float depth;
+attribute vec3 vertPos;
+
+void main() {
+	csm_Position = position;
+	csm_Position *= mix( 1.0 + depthScaling, 1.0 - depthScaling, depth );
+	csm_Position += vertPos;
+	vDepth = depth;
+}
+`;
+
+const VERTEX_FRAGMENTSHADER = `
+uniform vec3 nearColor;
+uniform vec3 farColor;
+
+varying float vDepth;
+
+void main() {
+	csm_DiffuseColor = vec4( mix(nearColor, farColor, vDepth), opacity );
+}
+`;
+
+const EDGE_VERTEXSHADER = `
+uniform float depthScaling;
+
+varying float vDepth1;
+varying float vDepth2;
+varying vec2 vUv;
+
+attribute float depth1;
+attribute float depth2;
+attribute vec3 posFrom;
+attribute vec3 posTo;
+
+
+mat3 lookAt(vec3 eye, vec3 at) {
+	vec3 localUp = vec3(0.0, 1.0, 0.0);
+	vec3 fwd = normalize(eye - at);
+
+	float upDot = dot(localUp, fwd);
+	bool isUp = abs(1.0 - abs(upDot)) < 0.00001;
+
+	localUp.z += float(isUp) * 1.0;
+	localUp.y += float(isUp) * -1.0;
+
+	vec3 right = normalize(cross(localUp, fwd));
+	vec3 up = normalize(cross(fwd, right));
+
+	return mat3(right, up, fwd);
+}
+
+void main() {
+	vUv = vec3( uv, 1 ).xy;
+
+	csm_Position = position;
+	float scaleFactor = mix( 1.0 + depthScaling, 1.0 - depthScaling, depth1 + (depth2 - depth1) * vUv.y );
+	csm_Position.x *= scaleFactor;
+	csm_Position.y *= scaleFactor;
+	csm_Position.z *= distance(posFrom, posTo);
+
+	mat3 lookAtMatrix = lookAt(posFrom, posTo);
+	csm_Position = lookAtMatrix * csm_Position;
+	csm_Normal = lookAtMatrix * normal;
+
+	csm_Position += posFrom;
+
+	vDepth1 = depth1;
+	vDepth2 = depth2;
+}
+`;
+
+const EDGE_FRAGMENTSHADER = `
+uniform vec3 nearColor;
+uniform vec3 farColor;
+
+varying float vDepth1;
+varying float vDepth2;
+varying vec2 vUv;
+
+void main() {
+	csm_DiffuseColor = vec4( mix( nearColor, farColor, vDepth1 + (vDepth2 - vDepth1) * vUv.y ), opacity );
+}
+`;
 
 ///
 export class Polytope {
@@ -13,9 +103,11 @@ export class Polytope {
 		positionAttribute: THREE.InstancedBufferAttribute;
 	};
 	edge: {
-		mesh: THREE.InstancedMesh;
+		mesh: THREE.Mesh;
 		depth1Attribute: THREE.InstancedBufferAttribute;
 		depth2Attribute: THREE.InstancedBufferAttribute;
+		fromAttribute: THREE.InstancedBufferAttribute;
+		toAttribute: THREE.InstancedBufferAttribute;
 	};
 	// face: {
 	//     mesh: THREE.Mesh;
@@ -53,7 +145,8 @@ export class Polytope {
 		// TODO: Make these modifiable
 
 		// future plan:
-		//
+		// rotation_matrix: a 4D matrix representing the objects rotation,
+		// the object can now be rotated entirely in 4d space
 		const extraUniforms = {
 			nearColor: { value: new THREE.Color().setHSL(60 / 360, 1, 0.5) },
 			farColor: { value: new THREE.Color().setHSL(0 / 360, 1, 0.5) },
@@ -64,40 +157,14 @@ export class Polytope {
 		const vertexGeometry = new THREE.InstancedBufferGeometry().copy(
 			new THREE.SphereGeometry(thickness, 16, 16)
 		);
-		const vertexMaterial = new THREE.MeshPhongMaterial({ shininess: 100 });
-		vertexMaterial.onBeforeCompile = (shader) => {
-			shader.uniforms = { ...shader.uniforms, ...extraUniforms };
-			shader.vertexShader = shader.vertexShader
-				.replace(
-					'#define PHONG',
-					`#define PHONG
-          uniform float depthScaling;
-          varying float vDepth;`
-				)
-				.replace(
-					'#include <common>',
-					`#include <common>
-          attribute float depth;
-		  attribute vec3 vertPos;`
-				)
-				.replace(
-					'#include <project_vertex>',
-					`transformed *= mix( 1.0 + depthScaling, 1.0 - depthScaling, depth );
-					transformed += vertPos;
-          #include <project_vertex>
-          vDepth = depth;`
-				);
 
-			shader.fragmentShader = `
-        uniform vec3 nearColor;
-        uniform vec3 farColor;
-        varying float vDepth;
-        ${shader.fragmentShader.replace(
-					'vec4 diffuseColor = vec4( diffuse, opacity );',
-					'vec4 diffuseColor = vec4( mix(nearColor, farColor, vDepth), opacity );'
-				)}
-        `;
-		};
+		const vertexMaterial = new CustomShaderMaterial({
+			baseMaterial: THREE.MeshPhongMaterial,
+			vertexShader: VERTEX_VERTEXSHADER,
+			fragmentShader: VERTEX_FRAGMENTSHADER,
+			uniforms: extraUniforms,
+			shininess: 100
+		});
 
 		const dataRefs = this.wasm.get_render_data_refs();
 
@@ -121,63 +188,39 @@ export class Polytope {
 		};
 
 		// edges
-		// const edgeData = getEdgesFromFaces(faces);
-		const edgeGeometry = new THREE.CylinderGeometry(thickness, thickness, 1, 16, 1, true);
-		edgeGeometry.rotateX(-Math.PI / 2);
-		edgeGeometry.translate(0, 0, -0.5);
-		const edgeMaterial = new THREE.MeshPhongMaterial({
-			shininess: 100,
-			transparent: false
-		});
-		edgeMaterial.defines = { USE_UV: '' };
-		edgeMaterial.onBeforeCompile = (shader) => {
-			shader.uniforms = { ...shader.uniforms, ...extraUniforms };
-			shader.vertexShader = shader.vertexShader
-				.replace(
-					'#define PHONG',
-					`#define PHONG
-          uniform float depthScaling;
-          varying float vDepth1;
-          varying float vDepth2;`
-				)
-				.replace(
-					'#include <common>',
-					`#include <common>
-          attribute float depth1;
-          attribute float depth2;`
-				)
-				.replace(
-					'#include <project_vertex>',
-					`float scaleFactor = mix( 1.0 + depthScaling, 1.0 - depthScaling, depth1 + (depth2 - depth1) * vUv.y );
-          transformed.x *= scaleFactor;
-          transformed.y *= scaleFactor;
-          #include <project_vertex>
-          vDepth1 = depth1;
-          vDepth2 = depth2;`
-				);
 
-			shader.fragmentShader = ` 
-        uniform vec3 nearColor;
-        uniform vec3 farColor;
-        varying float vDepth1;
-        varying float vDepth2;
-        ${shader.fragmentShader.replace(
-					'vec4 diffuseColor = vec4( diffuse, opacity );',
-					'vec4 diffuseColor = vec4( mix( nearColor, farColor, vDepth1 + (vDepth2 - vDepth1) * vUv.y ), opacity );'
-				)}
-        `;
-		};
+		const edgeGeometry = new THREE.InstancedBufferGeometry().copy(
+			new THREE.CylinderGeometry(thickness, thickness, 1, 16, 1, true)
+				.rotateX(-Math.PI / 2)
+				.translate(0, 0, -0.5)
+		);
+		const edgeMaterial = new CustomShaderMaterial({
+			baseMaterial: THREE.MeshPhongMaterial,
+			vertexShader: EDGE_VERTEXSHADER,
+			fragmentShader: EDGE_FRAGMENTSHADER,
+			uniforms: extraUniforms,
+			shininess: 100
+		});
+
+		edgeGeometry.instanceCount = dataRefs.edge_depth1s.length;
+		const edgeFromAttribute = wasmInstancedBufferAttribute(dataRefs.edge_from, 3);
+		edgeGeometry.setAttribute('posFrom', edgeFromAttribute);
+		const edgeToAttribute = wasmInstancedBufferAttribute(dataRefs.edge_to, 3);
+		edgeGeometry.setAttribute('posTo', edgeToAttribute);
 
 		const edgeDepth1Attribute = wasmInstancedBufferAttribute(dataRefs.edge_depth1s, 1);
 		edgeGeometry.setAttribute('depth1', edgeDepth1Attribute);
 		const edgeDepth2Attribute = wasmInstancedBufferAttribute(dataRefs.edge_depth2s, 1);
 		edgeGeometry.setAttribute('depth2', edgeDepth2Attribute);
-		const edgeMesh = wasmInstancedMesh(dataRefs.edge_instances, edgeGeometry, edgeMaterial);
+		const edgeMesh = new THREE.Mesh(edgeGeometry, edgeMaterial);
+		// const edgeMesh = wasmInstancedMesh(dataRefs.edge_instances, edgeGeometry, edgeMaterial);
 		this.scene.add(edgeMesh);
 		this.edge = {
 			mesh: edgeMesh,
 			depth1Attribute: edgeDepth1Attribute,
-			depth2Attribute: edgeDepth2Attribute
+			depth2Attribute: edgeDepth2Attribute,
+			fromAttribute: edgeFromAttribute,
+			toAttribute: edgeToAttribute
 		};
 	}
 
@@ -191,9 +234,11 @@ export class Polytope {
 		this.vertex.positionAttribute.needsUpdate = true;
 		this.vertex.depthAttribute.needsUpdate = true;
 
-		this.edge.mesh.instanceMatrix.needsUpdate = true;
+		// this.edge.mesh.instanceMatrix.needsUpdate = true;
 		this.edge.depth1Attribute.needsUpdate = true;
 		this.edge.depth2Attribute.needsUpdate = true;
+		this.edge.fromAttribute.needsUpdate = true;
+		this.edge.toAttribute.needsUpdate = true;
 	}
 
 	rotate(theta: number) {

@@ -41,6 +41,7 @@
 		"vite-plugin-wasm": "^3.6.0"
 	},
 	"dependencies": {
-		"three": "^0.183.2"
+		"three": "^0.183.2",
+		"three-custom-shader-material": "^6.4.0"
 	}
 }
