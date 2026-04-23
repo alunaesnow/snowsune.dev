@@ -1,1 +1,3 @@
-export { AnimationLoop } from './animationloop';
+/// Module containing various utility functions / classes
+
+export { AnimationLoop, AnimationProfiler } from './animation';

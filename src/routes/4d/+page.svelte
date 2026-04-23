@@ -1,12 +1,13 @@
 <script lang="ts">
 	import AnimatedScene from '$lib/components/AnimatedScene.svelte';
-	import { HyperObject } from '$lib/scripts/hyperobject';
+	import { Polytope } from '$lib/scripts/polytope';
+	import { AnimationProfiler } from '$lib/utils';
 	import * as THREE from 'three';
 	import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 	let scene: THREE.Scene, camera: THREE.PerspectiveCamera, renderer: THREE.WebGLRenderer;
 	let cube: THREE.Mesh;
-	let hyperobject: HyperObject;
+	let polytope: Polytope;
 
 	function init(canvas: HTMLCanvasElement, width: number, height: number) {
 		// ////////// Inital Setup //////////
@@ -58,24 +59,21 @@
 
 		////////// HyperObject //////////
 
-		hyperobject = new HyperObject(scene);
-		hyperobject.loadPoly('x4x3o3o');
+		polytope = new Polytope(scene, 'x5x3x3x');
 
 		// hyperobject.rotate(Math.PI / 4);
 		// hyperobject.update();
 	}
 
+	const profiler = new AnimationProfiler({ frames: 1_000 });
 	function frame(delta: number) {
-		hyperobject.rotate(delta * 0.00025);
-		hyperobject.update();
-
-		// const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
+		profiler.begin();
+		polytope.rotate(delta * 0.00025);
+		profiler.endSection('rotate');
+		polytope.update();
+		profiler.endSection('update');
 		renderer.render(scene, camera);
-
-		// let time = performance.now();
-		// cube.rotation.x = time / 2000;
-		// cube.rotation.y = time / 1000;
+		profiler.endSection('render');
 	}
 
 	function resize(_canvas: HTMLCanvasElement, width: number, height: number) {
