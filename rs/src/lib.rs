@@ -26,27 +26,19 @@ enum RotationFrame {
 
 struct PolytopeData {}
 
-struct RenderData {}
+struct RenderData {
+    vertex_pos: Vec<f32>,
+    edge_pos_from: Vec<f32>,
+    edge_pos_to: Vec<f32>,
+}
 
 #[wasm_bindgen]
 struct PolytopeWasm {
-    n_vert: usize,
-    n_edge: usize,
-    n_face: usize,
+    rdat: RenderData,
 
     vertices: Array2<f32>,
     edge_vert: Vec<Vec<usize>>,
     face_vert: Vec<Vec<usize>>,
-
-    vertex_depths: Vec<f32>,
-
-    edge_from: Vec<f32>,
-    edge_to: Vec<f32>,
-
-    edge_depth1s: Vec<f32>,
-    edge_depth2s: Vec<f32>,
-
-    vertex_positions: Vec<f32>,
 
     axes: Array2<f32>,
     world_axes: Array2<f32>,
@@ -73,38 +65,54 @@ impl PolytopeWasm {
         let edge_vert = polytope.subelements(1, 0).unwrap();
         let face_vert = polytope.subelements(2, 0).unwrap();
 
-        let iter = face_vert.iter().flatten();
-        let a: Indices = if vertices.len() <= u16::MAX as usize {
-            Indices::UInt16(iter.map(|&v| u16::try_from(v).unwrap()).collect())
-        } else {
-            Indices::UInt32(iter.map(|&v| u32::try_from(v).unwrap()).collect())
-        };
+        // let iter = face_vert.iter().flatten();
+        // let a: Indices = if vertices.len() <= u16::MAX as usize {
+        //     Indices::UInt16(iter.map(|&v| u16::try_from(v).unwrap()).collect())
+        // } else {
+        //     Indices::UInt32(iter.map(|&v| u32::try_from(v).unwrap()).collect())
+        // };
 
         let n_vert = vertices.nrows();
         let n_edge = edge_vert.len();
-        let n_face = face_vert.len();
 
-        let vertex_depths = vec![0f32; n_vert];
-        let edge_depth1s = vec![0f32; n_edge];
-        let edge_depth2s = vec![0f32; n_edge];
+        let mut vertex_pos = vec![0f32; n_vert * 4];
+        let mut edge_pos_from = vec![0f32; n_edge * 4];
+        let mut edge_pos_to = vec![0f32; n_edge * 4];
 
-        let vertex_positions = vec![0f32; n_vert * 3];
-        let edge_from = vec![0f32; n_edge * 3];
-        let edge_to = vec![0f32; n_edge * 3];
+        for i in 0..n_edge {
+            let o4 = i * 4;
+            let e = &edge_vert[i];
+            let v0 = vertices.row(e[0]);
+            let v1 = vertices.row(e[1]);
+
+            edge_pos_from[o4] = v0[0];
+            edge_pos_from[o4 + 1] = v0[1];
+            edge_pos_from[o4 + 2] = v0[2];
+            edge_pos_from[o4 + 3] = v0[3];
+            edge_pos_to[o4] = v1[0];
+            edge_pos_to[o4 + 1] = v1[1];
+            edge_pos_to[o4 + 2] = v1[2];
+            edge_pos_to[o4 + 3] = v1[3];
+        }
+
+        for i in 0..n_vert {
+            let v = vertices.row(i);
+            let o4 = i * 4;
+            vertex_pos[o4] = v[0];
+            vertex_pos[o4 + 1] = v[1];
+            vertex_pos[o4 + 2] = v[2];
+            vertex_pos[o4 + 3] = v[3];
+        }
 
         PolytopeWasm {
-            n_vert,
-            n_edge,
-            n_face,
+            rdat: RenderData {
+                vertex_pos,
+                edge_pos_from,
+                edge_pos_to,
+            },
             vertices,
             edge_vert,
             face_vert,
-            vertex_depths,
-            edge_depth1s,
-            edge_depth2s,
-            edge_from,
-            edge_to,
-            vertex_positions,
             axes: Array2::<f32>::eye(4),
             world_axes: Array2::<f32>::eye(4),
             rotation_frame: RotationFrame::WorldAxes,
@@ -115,45 +123,6 @@ impl PolytopeWasm {
     pub fn update(&mut self) -> bool {
         if !self.needsUpdate {
             return false;
-        }
-        ///// INSTANCE MATRICIES /////
-        let vert3d = perspective_project(&self.vertices, -2f32);
-
-        for i in 0..self.n_edge {
-            let o3 = i * 3;
-            let e = &self.edge_vert[i];
-            let v0 = vert3d.row(e[0]);
-            let v1 = vert3d.row(e[1]);
-
-            self.edge_from[o3] = v0[0];
-            self.edge_from[o3 + 1] = v0[1];
-            self.edge_from[o3 + 2] = v0[2];
-            self.edge_to[o3] = v1[0];
-            self.edge_to[o3 + 1] = v1[1];
-            self.edge_to[o3 + 2] = v1[2];
-        }
-
-        for i in 0..self.n_vert {
-            let v = vert3d.row(i);
-            let o3 = i * 3;
-            self.vertex_positions[o3] = v[0];
-            self.vertex_positions[o3 + 1] = v[1];
-            self.vertex_positions[o3 + 2] = v[2];
-        }
-
-        ///// DEPTHS /////
-        // update vertex depths
-        let max_w = 1f32;
-        for i in 0..self.n_vert {
-            self.vertex_depths[i] =
-                ((self.vertices[[i, 3]] / max_w + 1f32) / 2f32).clamp(0f32, 1f32);
-        }
-
-        // update edge depths
-        for i in 0..self.n_edge {
-            let e = &self.edge_vert[i];
-            self.edge_depth1s[i] = self.vertex_depths[e[0]];
-            self.edge_depth2s[i] = self.vertex_depths[e[1]];
         }
 
         return true;
@@ -183,12 +152,9 @@ impl PolytopeWasm {
 
     pub fn get_render_data_refs(&self) -> RenderDataRefs {
         RenderDataRefs {
-            vertex_depths: self.vertex_depths.as_array_ref(),
-            edge_depth1s: self.edge_depth1s.as_array_ref(),
-            edge_depth2s: self.edge_depth2s.as_array_ref(),
-            vertex_positions: self.vertex_positions.as_array_ref(),
-            edge_from: self.edge_from.as_array_ref(),
-            edge_to: self.edge_to.as_array_ref(),
+            vertex_pos: self.rdat.vertex_pos.as_array_ref(),
+            edge_pos_from: self.rdat.edge_pos_from.as_array_ref(),
+            edge_pos_to: self.rdat.edge_pos_to.as_array_ref(),
         }
     }
 
@@ -219,15 +185,9 @@ impl PolytopeWasm {
 #[derive(Tsify, Serialize)]
 #[tsify(into_wasm_abi)]
 pub struct RenderDataRefs {
-    vertex_depths: ArrayRef,
-
-    edge_depth1s: ArrayRef,
-    edge_depth2s: ArrayRef,
-
-    vertex_positions: ArrayRef,
-
-    edge_from: ArrayRef,
-    edge_to: ArrayRef,
+    vertex_pos: ArrayRef,
+    edge_pos_from: ArrayRef,
+    edge_pos_to: ArrayRef,
 }
 
 #[derive(Tsify, Serialize)]

@@ -3,19 +3,34 @@ import { PolytopeWasm, type ArrayRef } from '$lib/pkg/rs';
 import { memory } from '$lib/pkg/rs_bg.wasm';
 import CustomShaderMaterial from 'three-custom-shader-material/vanilla';
 
+const VERTEXSHADER_COMMON = `
+vec3 projectTo3D(vec4 pos) {
+	vec3 xyz = pos.xyz;
+	float d = 2.0 / (pos.w + 2.0);
+	xyz *= d;
+	return xyz;
+}
+
+float depth(float w) {
+	return clamp((w + 1.0) / 2.0, 0.0, 1.0);
+}
+`;
+
 const VERTEX_VERTEXSHADER = `
 uniform float depthScaling;
 
 varying float vDepth;
 
-attribute float depth;
-attribute vec3 vertPos;
+attribute vec4 pos;
+
+${VERTEXSHADER_COMMON}
 
 void main() {
+	float myDepth = depth(pos.w);
 	csm_Position = position;
-	csm_Position *= mix( 1.0 + depthScaling, 1.0 - depthScaling, depth );
-	csm_Position += vertPos;
-	vDepth = depth;
+	csm_Position *= mix( 1.0 + depthScaling, 1.0 - depthScaling, myDepth );
+	csm_Position += projectTo3D(pos);
+	vDepth = myDepth;
 }
 `;
 
@@ -33,15 +48,14 @@ void main() {
 const EDGE_VERTEXSHADER = `
 uniform float depthScaling;
 
+varying vec2 vUv;
 varying float vDepth1;
 varying float vDepth2;
-varying vec2 vUv;
 
-attribute float depth1;
-attribute float depth2;
-attribute vec3 posFrom;
-attribute vec3 posTo;
+attribute vec4 posFrom;
+attribute vec4 posTo;
 
+${VERTEXSHADER_COMMON}
 
 mat3 lookAt(vec3 eye, vec3 at) {
 	vec3 localUp = vec3(0.0, 1.0, 0.0);
@@ -62,17 +76,22 @@ mat3 lookAt(vec3 eye, vec3 at) {
 void main() {
 	vUv = vec3( uv, 1 ).xy;
 
+	vec3 from = projectTo3D(posFrom);
+	vec3 to = projectTo3D(posTo);
+	float depth1 = depth(posFrom.w);
+	float depth2 = depth(posTo.w);
+
 	csm_Position = position;
 	float scaleFactor = mix( 1.0 + depthScaling, 1.0 - depthScaling, depth1 + (depth2 - depth1) * vUv.y );
 	csm_Position.x *= scaleFactor;
 	csm_Position.y *= scaleFactor;
-	csm_Position.z *= distance(posFrom, posTo);
+	csm_Position.z *= distance(from, to);
 
-	mat3 lookAtMatrix = lookAt(posFrom, posTo);
+	mat3 lookAtMatrix = lookAt(from, to);
 	csm_Position = lookAtMatrix * csm_Position;
 	csm_Normal = lookAtMatrix * normal;
 
-	csm_Position += posFrom;
+	csm_Position += from;
 
 	vDepth1 = depth1;
 	vDepth2 = depth2;
@@ -92,6 +111,8 @@ void main() {
 }
 `;
 
+type Uniform<T> = { value: T };
+
 ///
 export class Polytope {
 	wasm: PolytopeWasm;
@@ -99,15 +120,15 @@ export class Polytope {
 	scene: THREE.Scene;
 	vertex: {
 		mesh: THREE.Mesh;
-		depthAttribute: THREE.InstancedBufferAttribute;
-		positionAttribute: THREE.InstancedBufferAttribute;
 	};
 	edge: {
 		mesh: THREE.Mesh;
-		depth1Attribute: THREE.InstancedBufferAttribute;
-		depth2Attribute: THREE.InstancedBufferAttribute;
-		fromAttribute: THREE.InstancedBufferAttribute;
-		toAttribute: THREE.InstancedBufferAttribute;
+	};
+
+	uniforms: {
+		nearColor: Uniform<THREE.Color>;
+		farColor: Uniform<THREE.Color>;
+		depthScaling: Uniform<number>;
 	};
 	// face: {
 	//     mesh: THREE.Mesh;
@@ -168,23 +189,14 @@ export class Polytope {
 
 		const dataRefs = this.wasm.get_render_data_refs();
 
-		vertexGeometry.instanceCount = dataRefs.vertex_depths.length;
-		const vertexDepthAttribute = wasmInstancedBufferAttribute(dataRefs.vertex_depths, 1);
-		vertexGeometry.setAttribute('depth', vertexDepthAttribute);
-		const vertexPositionAttribute = wasmInstancedBufferAttribute(
-			dataRefs.vertex_positions,
-			3,
-			false,
-			1
-		);
-		vertexGeometry.setAttribute('vertPos', vertexPositionAttribute);
+		vertexGeometry.instanceCount = Math.floor(dataRefs.vertex_pos.length / 4);
+		const vertexPosAttribute = wasmInstancedBufferAttribute(dataRefs.vertex_pos, 4);
+		vertexGeometry.setAttribute('pos', vertexPosAttribute);
 		const vertexMesh = new THREE.Mesh(vertexGeometry, vertexMaterial);
 		// wasmInstancedMesh(dataRefs.vertex_instances, vertexGeometry, vertexMaterial);
 		this.scene.add(vertexMesh);
 		this.vertex = {
-			mesh: vertexMesh,
-			depthAttribute: vertexDepthAttribute,
-			positionAttribute: vertexPositionAttribute
+			mesh: vertexMesh
 		};
 
 		// edges
@@ -202,47 +214,29 @@ export class Polytope {
 			shininess: 100
 		});
 
-		edgeGeometry.instanceCount = dataRefs.edge_depth1s.length;
-		const edgeFromAttribute = wasmInstancedBufferAttribute(dataRefs.edge_from, 3);
-		edgeGeometry.setAttribute('posFrom', edgeFromAttribute);
-		const edgeToAttribute = wasmInstancedBufferAttribute(dataRefs.edge_to, 3);
-		edgeGeometry.setAttribute('posTo', edgeToAttribute);
+		edgeGeometry.instanceCount = Math.floor(dataRefs.edge_pos_from.length / 4);
 
-		const edgeDepth1Attribute = wasmInstancedBufferAttribute(dataRefs.edge_depth1s, 1);
-		edgeGeometry.setAttribute('depth1', edgeDepth1Attribute);
-		const edgeDepth2Attribute = wasmInstancedBufferAttribute(dataRefs.edge_depth2s, 1);
-		edgeGeometry.setAttribute('depth2', edgeDepth2Attribute);
+		const edgeFromTwoAttribute = wasmInstancedBufferAttribute(dataRefs.edge_pos_from, 4);
+		edgeGeometry.setAttribute('posFrom', edgeFromTwoAttribute);
+		const edgeToTwoAttribute = wasmInstancedBufferAttribute(dataRefs.edge_pos_to, 4);
+		edgeGeometry.setAttribute('posTo', edgeToTwoAttribute);
+
 		const edgeMesh = new THREE.Mesh(edgeGeometry, edgeMaterial);
 		// const edgeMesh = wasmInstancedMesh(dataRefs.edge_instances, edgeGeometry, edgeMaterial);
 		this.scene.add(edgeMesh);
 		this.edge = {
-			mesh: edgeMesh,
-			depth1Attribute: edgeDepth1Attribute,
-			depth2Attribute: edgeDepth2Attribute,
-			fromAttribute: edgeFromAttribute,
-			toAttribute: edgeToAttribute
+			mesh: edgeMesh
 		};
+		this.uniforms = extraUniforms;
 	}
 
 	update() {
 		this.wasm.update();
-
-		// Need to mark the update flags on the instance matrices
-		// and buffer attributes, else the changes wont be uploaded
-		// to the GPU
-		// this.vertex.mesh.instanceMatrix.needsUpdate = true;
-		this.vertex.positionAttribute.needsUpdate = true;
-		this.vertex.depthAttribute.needsUpdate = true;
-
-		// this.edge.mesh.instanceMatrix.needsUpdate = true;
-		this.edge.depth1Attribute.needsUpdate = true;
-		this.edge.depth2Attribute.needsUpdate = true;
-		this.edge.fromAttribute.needsUpdate = true;
-		this.edge.toAttribute.needsUpdate = true;
 	}
 
 	rotate(theta: number) {
 		this.wasm.rotate(theta, 0, 3);
+		// this.uniforms.scaleMat.value[0] += 0.01;
 	}
 }
 
@@ -275,12 +269,12 @@ function wasmInstancedBufferAttribute(
 // 	return new THREE.BufferAttribute(wasmTypedArray(wasmArray), item_size);
 // }
 
-function wasmInstancedMesh(
-	wasmArray: ArrayRef,
-	geometry: THREE.BufferGeometry,
-	material: THREE.Material
-): THREE.InstancedMesh {
-	const mesh = new THREE.InstancedMesh(geometry, material, Math.floor(wasmArray.length / 16));
-	mesh.instanceMatrix = wasmInstancedBufferAttribute(wasmArray, 16);
-	return mesh;
-}
+// function wasmInstancedMesh(
+// 	wasmArray: ArrayRef,
+// 	geometry: THREE.BufferGeometry,
+// 	material: THREE.Material
+// ): THREE.InstancedMesh {
+// 	const mesh = new THREE.InstancedMesh(geometry, material, Math.floor(wasmArray.length / 16));
+// 	mesh.instanceMatrix = wasmInstancedBufferAttribute(wasmArray, 16);
+// 	return mesh;
+// }
