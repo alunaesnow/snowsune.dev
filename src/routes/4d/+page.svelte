@@ -23,7 +23,8 @@
 		scene.background = new THREE.Color(0xffffff);
 		renderer.setSize(width, height);
 
-		new OrbitControls(camera, renderer.domElement);
+		const orbitControls = new OrbitControls(camera, renderer.domElement);
+		orbitControls.minDistance = 0.08;
 
 		////////// Scene Setup //////////
 		// Camera

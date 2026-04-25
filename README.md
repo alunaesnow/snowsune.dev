@@ -2,6 +2,6 @@
 
 - prettier-plugin-sort-imports
 
-# Concepts idk
+# notes for later:
 
-## Accesing raw WASM memory
+- use texture to store vertex coordinates, and when unfolding vertex coordinates at each step

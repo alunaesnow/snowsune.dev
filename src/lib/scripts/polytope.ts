@@ -18,6 +18,7 @@ float depth(float w) {
 
 const VERTEX_VERTEXSHADER = `
 uniform float depthScaling;
+uniform mat4 rotationMatrix;
 
 varying float vDepth;
 
@@ -26,10 +27,11 @@ attribute vec4 pos;
 ${VERTEXSHADER_COMMON}
 
 void main() {
-	float myDepth = depth(pos.w);
+	vec4 rotPos = pos * rotationMatrix;
+	float myDepth = depth(rotPos.w);
 	csm_Position = position;
 	csm_Position *= mix( 1.0 + depthScaling, 1.0 - depthScaling, myDepth );
-	csm_Position += projectTo3D(pos);
+	csm_Position += projectTo3D(rotPos);
 	vDepth = myDepth;
 }
 `;
@@ -47,6 +49,7 @@ void main() {
 
 const EDGE_VERTEXSHADER = `
 uniform float depthScaling;
+uniform mat4 rotationMatrix;
 
 varying vec2 vUv;
 varying float vDepth1;
@@ -76,10 +79,13 @@ mat3 lookAt(vec3 eye, vec3 at) {
 void main() {
 	vUv = vec3( uv, 1 ).xy;
 
-	vec3 from = projectTo3D(posFrom);
-	vec3 to = projectTo3D(posTo);
-	float depth1 = depth(posFrom.w);
-	float depth2 = depth(posTo.w);
+	vec4 rotPosFrom = posFrom * rotationMatrix;
+	vec4 rotPosTo = posTo * rotationMatrix;
+
+	vec3 from = projectTo3D(rotPosFrom);
+	vec3 to = projectTo3D(rotPosTo);
+	float depth1 = depth(rotPosFrom.w);
+	float depth2 = depth(rotPosTo.w);
 
 	csm_Position = position;
 	float scaleFactor = mix( 1.0 + depthScaling, 1.0 - depthScaling, depth1 + (depth2 - depth1) * vUv.y );
@@ -129,6 +135,7 @@ export class Polytope {
 		nearColor: Uniform<THREE.Color>;
 		farColor: Uniform<THREE.Color>;
 		depthScaling: Uniform<number>;
+		rotationMatrix: Uniform<THREE.TypedArray>;
 	};
 	// face: {
 	//     mesh: THREE.Mesh;
@@ -163,15 +170,14 @@ export class Polytope {
 		// containing the relevant buffer attribute. Doing this by making use of the ability
 		// to pass pointers from the wasm module.
 
-		// TODO: Make these modifiable
+		const dataRefs = this.wasm.get_render_data_refs();
 
-		// future plan:
-		// rotation_matrix: a 4D matrix representing the objects rotation,
-		// the object can now be rotated entirely in 4d space
+		// TODO: Make these modifiable
 		const extraUniforms = {
 			nearColor: { value: new THREE.Color().setHSL(60 / 360, 1, 0.5) },
 			farColor: { value: new THREE.Color().setHSL(0 / 360, 1, 0.5) },
-			depthScaling: { value: 0.2 }
+			depthScaling: { value: 0.2 },
+			rotationMatrix: { value: wasmTypedArray(dataRefs.rotation_matrix) }
 		};
 
 		/// Create vertices
@@ -186,8 +192,6 @@ export class Polytope {
 			uniforms: extraUniforms,
 			shininess: 100
 		});
-
-		const dataRefs = this.wasm.get_render_data_refs();
 
 		vertexGeometry.instanceCount = Math.floor(dataRefs.vertex_pos.length / 4);
 		const vertexPosAttribute = wasmInstancedBufferAttribute(dataRefs.vertex_pos, 4);

@@ -1,13 +1,10 @@
-use ndarray::{Array1, Array2, array};
+use ndarray::Array2;
 use polygen::PolytopeBuilder;
 use serde::{Deserialize, Serialize};
 use tsify::Tsify;
 use wasm_bindgen::prelude::*;
 
-use crate::{
-    ndtools::{Rotor4D, perspective_project},
-    utils::norm_l2,
-};
+use crate::{ndtools::Rotor4, utils::norm_l2};
 
 mod ndtools;
 mod utils;
@@ -17,7 +14,7 @@ fn start() {
     console_error_panic_hook::set_once();
 }
 
-#[derive(Tsify, Deserialize)]
+#[derive(Tsify, Deserialize, PartialEq)]
 #[tsify(from_wasm_abi)]
 enum RotationFrame {
     WorldAxes,
@@ -30,6 +27,7 @@ struct RenderData {
     vertex_pos: Vec<f32>,
     edge_pos_from: Vec<f32>,
     edge_pos_to: Vec<f32>,
+    rotation_matrix: Vec<f32>,
 }
 
 #[wasm_bindgen]
@@ -40,11 +38,12 @@ struct PolytopeWasm {
     edge_vert: Vec<Vec<usize>>,
     face_vert: Vec<Vec<usize>>,
 
-    axes: Array2<f32>,
     world_axes: Array2<f32>,
     rotation_frame: RotationFrame,
+    /// Like a quaternion, this holds the rotation of the 4D object
+    rotor: Option<Rotor4>,
 
-    needsUpdate: bool,
+    needs_pdate: bool,
 }
 
 enum Indices {
@@ -104,26 +103,46 @@ impl PolytopeWasm {
             vertex_pos[o4 + 3] = v[3];
         }
 
+        let mut rotation_matrix = vec![0f32; 16];
+        for i in 0..4 {
+            rotation_matrix[i + i * 4] = 1.0;
+        }
+
         PolytopeWasm {
             rdat: RenderData {
                 vertex_pos,
                 edge_pos_from,
                 edge_pos_to,
+                rotation_matrix,
             },
             vertices,
             edge_vert,
             face_vert,
-            axes: Array2::<f32>::eye(4),
             world_axes: Array2::<f32>::eye(4),
             rotation_frame: RotationFrame::WorldAxes,
-            needsUpdate: true,
+            rotor: None,
+            needs_pdate: true,
         }
     }
 
     pub fn update(&mut self) -> bool {
-        if !self.needsUpdate {
+        if !self.needs_pdate {
             return false;
         }
+
+        if let Some(rotor) = &self.rotor {
+            let rot_mat = rotor.to_rotation_matrix();
+            for i in 0..4 {
+                for j in 0..4 {
+                    self.rdat.rotation_matrix[i * 4 + j] = rot_mat[[i, j]];
+                }
+            }
+        }
+        // for i in 0..4 {
+        //     for j in 0..4 {
+        //         self.rdat.rotation_matrix[i * 4 + j] = self.rot_mat[[i, j]];
+        //     }
+        // }
 
         return true;
     }
@@ -133,17 +152,29 @@ impl PolytopeWasm {
             return;
         }
 
-        let axes = match self.rotation_frame {
-            RotationFrame::WorldAxes => &self.world_axes,
-            RotationFrame::ObjectAxes => &self.axes,
-        };
+        let mut v1 = self.world_axes.row(axes1).to_owned();
+        let mut v2 = self.world_axes.row(axes2).to_owned();
 
-        let rotor = Rotor4D::new(&axes.row(axes1), &axes.row(axes2), theta);
+        if self.rotation_frame == RotationFrame::ObjectAxes {
+            if let Some(rotor) = &self.rotor {
+                let rot_mat = rotor.to_rotation_matrix();
+                v1 = v1.dot(&rot_mat);
+                v2 = v2.dot(&rot_mat);
+            }
+        }
 
-        self.vertices = rotor.rotate(&mut self.vertices);
-        self.axes = rotor.rotate(&mut self.axes);
+        let new_rotor = Rotor4::from_plane_angle(&v1, &v2, theta);
 
-        self.needsUpdate = true;
+        match &self.rotor {
+            Some(rotor) => self.rotor = Some(&new_rotor * rotor),
+            None => self.rotor = Some(new_rotor),
+        }
+
+        // let rotor = Rotor4D::new(&v1, &v2, theta);
+
+        // self.rot_mat = rotor.rotation_matrix.dot(&self.rot_mat);
+
+        self.needs_pdate = true;
     }
 
     pub fn set_rotation_frame(&mut self, rotation_frame: RotationFrame) {
@@ -155,6 +186,7 @@ impl PolytopeWasm {
             vertex_pos: self.rdat.vertex_pos.as_array_ref(),
             edge_pos_from: self.rdat.edge_pos_from.as_array_ref(),
             edge_pos_to: self.rdat.edge_pos_to.as_array_ref(),
+            rotation_matrix: self.rdat.rotation_matrix.as_array_ref(),
         }
     }
 
@@ -188,6 +220,7 @@ pub struct RenderDataRefs {
     vertex_pos: ArrayRef,
     edge_pos_from: ArrayRef,
     edge_pos_to: ArrayRef,
+    rotation_matrix: ArrayRef,
 }
 
 #[derive(Tsify, Serialize)]
