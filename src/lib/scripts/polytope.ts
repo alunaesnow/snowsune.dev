@@ -14,19 +14,33 @@ vec3 projectTo3D(vec4 pos) {
 float depth(float w) {
 	return clamp((w + 1.0) / 2.0, 0.0, 1.0);
 }
+
+vec4 texelFetch(sampler2D tex, vec2 texSize, vec2 pixelCoord) {
+	vec2 uv = (pixelCoord + 0.5) / texSize;
+	return texture2D(tex, uv);
+}
+
+vec4 getValueByIndexFromTexture(sampler2D tex, vec2 texSize, float index) {
+	float col = mod(index, texSize.x);
+	float row = floor(index / texSize.x);
+	return texelFetch(tex, texSize, vec2(col, row));
+}
 `;
 
 const VERTEX_VERTEXSHADER = `
 uniform float depthScaling;
 uniform mat4 rotationMatrix;
+uniform vec2 dataTextureDim;
+uniform sampler2D dataTexture;
 
 varying float vDepth;
 
-attribute vec4 pos;
+attribute float index;
 
 ${VERTEXSHADER_COMMON}
 
 void main() {
+	vec4 pos = getValueByIndexFromTexture(dataTexture, dataTextureDim, index);
 	vec4 rotPos = pos * rotationMatrix;
 	float myDepth = depth(rotPos.w);
 	csm_Position = position;
@@ -50,13 +64,14 @@ void main() {
 const EDGE_VERTEXSHADER = `
 uniform float depthScaling;
 uniform mat4 rotationMatrix;
+uniform vec2 dataTextureDim;
+uniform sampler2D dataTexture;
 
 varying vec2 vUv;
 varying float vDepth1;
 varying float vDepth2;
 
-attribute vec4 posFrom;
-attribute vec4 posTo;
+attribute vec2 index;
 
 ${VERTEXSHADER_COMMON}
 
@@ -78,6 +93,9 @@ mat3 lookAt(vec3 eye, vec3 at) {
 
 void main() {
 	vUv = vec3( uv, 1 ).xy;
+
+	vec4 posFrom = getValueByIndexFromTexture(dataTexture, dataTextureDim, index.x);
+	vec4 posTo = getValueByIndexFromTexture(dataTexture, dataTextureDim, index.y);
 
 	vec4 rotPosFrom = posFrom * rotationMatrix;
 	vec4 rotPosTo = posTo * rotationMatrix;
@@ -172,12 +190,34 @@ export class Polytope {
 
 		const dataRefs = this.wasm.get_render_data_refs();
 
+		const texArr = wasmTypedArray(dataRefs.texture);
+		const texDim = dataRefs.texture_dim;
+
+		// console.log({ texArr, texDim });
+
+		const texture = new THREE.DataTexture(
+			texArr,
+			texDim[0],
+			texDim[1],
+			THREE.RGBAFormat,
+			THREE.FloatType,
+			THREE.UVMapping,
+			THREE.ClampToEdgeWrapping,
+			THREE.ClampToEdgeWrapping,
+			THREE.NearestFilter,
+			THREE.NearestFilter
+		);
+		texture.needsUpdate = true;
+		texture.generateMipmaps = false;
+
 		// TODO: Make these modifiable
 		const extraUniforms = {
 			nearColor: { value: new THREE.Color().setHSL(60 / 360, 1, 0.5) },
 			farColor: { value: new THREE.Color().setHSL(0 / 360, 1, 0.5) },
 			depthScaling: { value: 0.2 },
-			rotationMatrix: { value: wasmTypedArray(dataRefs.rotation_matrix) }
+			rotationMatrix: { value: wasmTypedArray(dataRefs.rotation_matrix) },
+			dataTexture: { value: texture },
+			dataTextureDim: { value: texDim }
 		};
 
 		/// Create vertices
@@ -193,9 +233,9 @@ export class Polytope {
 			shininess: 100
 		});
 
-		vertexGeometry.instanceCount = Math.floor(dataRefs.vertex_pos.length / 4);
-		const vertexPosAttribute = wasmInstancedBufferAttribute(dataRefs.vertex_pos, 4);
-		vertexGeometry.setAttribute('pos', vertexPosAttribute);
+		vertexGeometry.instanceCount = Math.floor(dataRefs.vertex_indices.length);
+		const vertexIndexAttribute = wasmInstancedBufferAttribute(dataRefs.vertex_indices, 1);
+		vertexGeometry.setAttribute('index', vertexIndexAttribute);
 		const vertexMesh = new THREE.Mesh(vertexGeometry, vertexMaterial);
 		// wasmInstancedMesh(dataRefs.vertex_instances, vertexGeometry, vertexMaterial);
 		this.scene.add(vertexMesh);
@@ -218,12 +258,10 @@ export class Polytope {
 			shininess: 100
 		});
 
-		edgeGeometry.instanceCount = Math.floor(dataRefs.edge_pos_from.length / 4);
+		edgeGeometry.instanceCount = Math.floor(dataRefs.edge_indices.length / 2);
 
-		const edgeFromTwoAttribute = wasmInstancedBufferAttribute(dataRefs.edge_pos_from, 4);
-		edgeGeometry.setAttribute('posFrom', edgeFromTwoAttribute);
-		const edgeToTwoAttribute = wasmInstancedBufferAttribute(dataRefs.edge_pos_to, 4);
-		edgeGeometry.setAttribute('posTo', edgeToTwoAttribute);
+		const edgeIndexAttribute = wasmInstancedBufferAttribute(dataRefs.edge_indices, 2);
+		edgeGeometry.setAttribute('index', edgeIndexAttribute);
 
 		const edgeMesh = new THREE.Mesh(edgeGeometry, edgeMaterial);
 		// const edgeMesh = wasmInstancedMesh(dataRefs.edge_instances, edgeGeometry, edgeMaterial);

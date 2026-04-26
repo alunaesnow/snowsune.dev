@@ -24,10 +24,11 @@ enum RotationFrame {
 struct PolytopeData {}
 
 struct RenderData {
-    vertex_pos: Vec<f32>,
-    edge_pos_from: Vec<f32>,
-    edge_pos_to: Vec<f32>,
     rotation_matrix: Vec<f32>,
+    texture: Vec<f32>,
+    texture_dim: (usize, usize),
+    vertex_indices: Vec<f32>,
+    edge_indices: Vec<f32>,
 }
 
 #[wasm_bindgen]
@@ -64,6 +65,18 @@ impl PolytopeWasm {
         let edge_vert = polytope.subelements(1, 0).unwrap();
         let face_vert = polytope.subelements(2, 0).unwrap();
 
+        let mut texture: Vec<f32> = (vertices.iter().map(|&el| el)).collect();
+        let dim1 = ((texture.len() / 4) as f32).sqrt().ceil() as usize; // closest square that fits it all
+        let mut dim2 = dim1;
+        for i in (1..dim1).rev() {
+            if i * dim1 > (texture.len() / 4) {
+                dim2 = i;
+            } else {
+                break;
+            }
+        }
+        texture.resize(dim1 * dim2 * 4, 0.0);
+
         // let iter = face_vert.iter().flatten();
         // let a: Indices = if vertices.len() <= u16::MAX as usize {
         //     Indices::UInt16(iter.map(|&v| u16::try_from(v).unwrap()).collect())
@@ -74,34 +87,8 @@ impl PolytopeWasm {
         let n_vert = vertices.nrows();
         let n_edge = edge_vert.len();
 
-        let mut vertex_pos = vec![0f32; n_vert * 4];
-        let mut edge_pos_from = vec![0f32; n_edge * 4];
-        let mut edge_pos_to = vec![0f32; n_edge * 4];
-
-        for i in 0..n_edge {
-            let o4 = i * 4;
-            let e = &edge_vert[i];
-            let v0 = vertices.row(e[0]);
-            let v1 = vertices.row(e[1]);
-
-            edge_pos_from[o4] = v0[0];
-            edge_pos_from[o4 + 1] = v0[1];
-            edge_pos_from[o4 + 2] = v0[2];
-            edge_pos_from[o4 + 3] = v0[3];
-            edge_pos_to[o4] = v1[0];
-            edge_pos_to[o4 + 1] = v1[1];
-            edge_pos_to[o4 + 2] = v1[2];
-            edge_pos_to[o4 + 3] = v1[3];
-        }
-
-        for i in 0..n_vert {
-            let v = vertices.row(i);
-            let o4 = i * 4;
-            vertex_pos[o4] = v[0];
-            vertex_pos[o4 + 1] = v[1];
-            vertex_pos[o4 + 2] = v[2];
-            vertex_pos[o4 + 3] = v[3];
-        }
+        let vertex_indices = Vec::from_iter((0..n_vert).map(|v| v as f32));
+        let edge_indices = edge_vert.iter().flatten().map(|&v| v as f32).collect();
 
         let mut rotation_matrix = vec![0f32; 16];
         for i in 0..4 {
@@ -110,10 +97,11 @@ impl PolytopeWasm {
 
         PolytopeWasm {
             rdat: RenderData {
-                vertex_pos,
-                edge_pos_from,
-                edge_pos_to,
                 rotation_matrix,
+                texture,
+                texture_dim: (dim1, dim2),
+                vertex_indices,
+                edge_indices,
             },
             vertices,
             edge_vert,
@@ -183,10 +171,11 @@ impl PolytopeWasm {
 
     pub fn get_render_data_refs(&self) -> RenderDataRefs {
         RenderDataRefs {
-            vertex_pos: self.rdat.vertex_pos.as_array_ref(),
-            edge_pos_from: self.rdat.edge_pos_from.as_array_ref(),
-            edge_pos_to: self.rdat.edge_pos_to.as_array_ref(),
             rotation_matrix: self.rdat.rotation_matrix.as_array_ref(),
+            texture: self.rdat.texture.as_array_ref(),
+            texture_dim: self.rdat.texture_dim,
+            vertex_indices: self.rdat.vertex_indices.as_array_ref(),
+            edge_indices: self.rdat.edge_indices.as_array_ref(),
         }
     }
 
@@ -217,10 +206,11 @@ impl PolytopeWasm {
 #[derive(Tsify, Serialize)]
 #[tsify(into_wasm_abi)]
 pub struct RenderDataRefs {
-    vertex_pos: ArrayRef,
-    edge_pos_from: ArrayRef,
-    edge_pos_to: ArrayRef,
     rotation_matrix: ArrayRef,
+    texture: ArrayRef,
+    texture_dim: (usize, usize),
+    vertex_indices: ArrayRef,
+    edge_indices: ArrayRef,
 }
 
 #[derive(Tsify, Serialize)]
