@@ -135,6 +135,35 @@ void main() {
 }
 `;
 
+const FACE_VERTEXSHADER = `
+uniform mat4 rotationMatrix;
+uniform vec2 dataTextureDim;
+uniform sampler2D dataTexture;
+
+attribute float index;
+
+${VERTEXSHADER_COMMON}
+
+void main() {
+	vec4 pos = getValueByIndexFromTexture(dataTexture, dataTextureDim, index);
+	vec4 rotPos = pos * rotationMatrix;
+	csm_Position = projectTo3D(rotPos);
+}
+`;
+
+// const EDGE_FRAGMENTSHADER = `
+// uniform vec3 nearColor;
+// uniform vec3 farColor;
+
+// varying float vDepth1;
+// varying float vDepth2;
+// varying vec2 vUv;
+
+// void main() {
+// 	csm_DiffuseColor = vec4( mix( nearColor, farColor, vDepth1 + (vDepth2 - vDepth1) * vUv.y ), opacity );
+// }
+// `;
+
 type Uniform<T> = { value: T };
 
 ///
@@ -155,10 +184,9 @@ export class Polytope {
 		depthScaling: Uniform<number>;
 		rotationMatrix: Uniform<THREE.TypedArray>;
 	};
-	// face: {
-	//     mesh: THREE.Mesh;
-	//     positionAttribute: THREE.Float32BufferAttribute;
-	// }
+	face: {
+		mesh: THREE.Mesh;
+	};
 
 	constructor(scene: THREE.Scene, diagram: string) {
 		this.scene = scene;
@@ -270,6 +298,39 @@ export class Polytope {
 			mesh: edgeMesh
 		};
 		this.uniforms = extraUniforms;
+
+		// faces
+		const geometry = new THREE.BufferGeometry();
+
+		const indexAttribute = new THREE.BufferAttribute(wasmTypedArray(dataRefs.face_indices), 1);
+		geometry.setAttribute('index', indexAttribute);
+
+		geometry.setDrawRange(0, dataRefs.face_indices.length);
+
+		const material = new CustomShaderMaterial({
+			baseMaterial: THREE.MeshPhysicalMaterial,
+			vertexShader: FACE_VERTEXSHADER,
+			uniforms: extraUniforms,
+			color: 0xffffff,
+			side: THREE.DoubleSide,
+			opacity: 0.15,
+			transmission: 0.4,
+			transparent: true,
+			clearcoat: 1.0,
+			reflectivity: 1.0,
+			roughness: 0.0,
+			flatShading: true,
+			premultipliedAlpha: true,
+			depthWrite: false
+		});
+
+		const mesh = new THREE.Mesh(geometry, material);
+		mesh.frustumCulled = false;
+		this.scene.add(mesh);
+
+		this.face = {
+			mesh
+		};
 	}
 
 	update() {

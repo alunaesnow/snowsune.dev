@@ -178,9 +178,9 @@ checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
 
 [[package]]
 name = "polygen"
-version = "0.0.3"
+version = "0.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "917344c09a8104f271224bcac534d11822d321f01e1c17e22bbb50bf78e38440"
+checksum = "6f2754f591d37abf138899c717f29c6023913b3e0ef931d15ae38cf7897dcd6c"
 dependencies = [
  "itertools",
  "lazy_static",

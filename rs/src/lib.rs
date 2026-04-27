@@ -29,6 +29,7 @@ struct RenderData {
     texture_dim: (usize, usize),
     vertex_indices: Vec<f32>,
     edge_indices: Vec<f32>,
+    face_indices: Vec<f32>,
 }
 
 #[wasm_bindgen]
@@ -90,6 +91,15 @@ impl PolytopeWasm {
         let vertex_indices = Vec::from_iter((0..n_vert).map(|v| v as f32));
         let edge_indices = edge_vert.iter().flatten().map(|&v| v as f32).collect();
 
+        let mut face_indices = Vec::new();
+        for face in &face_vert {
+            for i in 0..face.len() - 2 {
+                face_indices.push(face[0] as f32);
+                face_indices.push(face[i + 1] as f32);
+                face_indices.push(face[i + 2] as f32);
+            }
+        }
+
         let mut rotation_matrix = vec![0f32; 16];
         for i in 0..4 {
             rotation_matrix[i + i * 4] = 1.0;
@@ -102,6 +112,7 @@ impl PolytopeWasm {
                 texture_dim: (dim1, dim2),
                 vertex_indices,
                 edge_indices,
+                face_indices,
             },
             vertices,
             edge_vert,
@@ -176,6 +187,7 @@ impl PolytopeWasm {
             texture_dim: self.rdat.texture_dim,
             vertex_indices: self.rdat.vertex_indices.as_array_ref(),
             edge_indices: self.rdat.edge_indices.as_array_ref(),
+            face_indices: self.rdat.face_indices.as_array_ref(),
         }
     }
 
@@ -211,6 +223,7 @@ pub struct RenderDataRefs {
     texture_dim: (usize, usize),
     vertex_indices: ArrayRef,
     edge_indices: ArrayRef,
+    face_indices: ArrayRef,
 }
 
 #[derive(Tsify, Serialize)]
