@@ -3,3 +3,52 @@
 @plugin '@iconify/tailwind4' {
 	scale: 1;
 }
+
+@layer base {
+	html,
+	body,
+	body > div:first-child {
+		height: 100%;
+		margin: 0;
+	}
+
+	body {
+		@apply bg-gray-50;
+	}
+
+	a {
+		@apply text-blue-500 hover:underline;
+	}
+
+	a:visited {
+		@apply text-purple-600;
+	}
+
+	button {
+		@apply cursor-pointer;
+	}
+}
+
+@theme {
+	--color-primary-50: #eff6ff;
+	--color-primary-100: #dbeafe;
+	--color-primary-200: #bfdbfe;
+	--color-primary-300: #93c5fd;
+	--color-primary-400: #60a5fa;
+	--color-primary-500: #3b82f6;
+	--color-primary-600: #2563eb;
+	--color-primary-700: #1d4ed8;
+	--color-primary-800: #1e40af;
+	--color-primary-900: #1e3a8a;
+
+	--color-var-50: var(--varcolor-50);
+	--color-var-100: var(--varcolor-100);
+	--color-var-200: var(--varcolor-200);
+	--color-var-300: var(--varcolor-300);
+	--color-var-400: var(--varcolor-400);
+	--color-var-500: var(--varcolor-500);
+	--color-var-600: var(--varcolor-600);
+	--color-var-700: var(--varcolor-700);
+	--color-var-800: var(--varcolor-800);
+	--color-var-900: var(--varcolor-900);
+}
