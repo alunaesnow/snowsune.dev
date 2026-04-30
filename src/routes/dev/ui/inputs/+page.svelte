@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { ComboBox, DatePicker, Form, NumberInput } from '$lib/foxyui/components';
+	import { ComboBox, DatePicker, Form, NumberInput, Slider } from '$lib/foxyui/components';
+	import Button from '$lib/foxyui/components/buttons/Button.svelte';
 	import SegmentedRadio from '$lib/foxyui/components/inputs/SegmentedRadio.svelte';
 
 	function dateValidator(value: Date | undefined): string | undefined {
@@ -23,7 +24,8 @@
 				liveValidate
 				title="Past date"
 				description="Pick a date in the past"
-			></DatePicker>
+			/>
+
 			<NumberInput
 				id="number"
 				min={-1}
@@ -34,6 +36,7 @@
 				title="Number"
 				description="Pick a number between -1 and 10"
 			/>
+
 			<ComboBox
 				id="fruit"
 				values={['apple', 'grapes', 'pear', 'kiwi', 'banana']}
@@ -54,10 +57,14 @@
 				description="Pick a text alignment"
 			/>
 
-			<button
-				class="w-full rounded-sm bg-blue-500 p-2 font-semibold text-white shadow-sm hover:bg-blue-600 hover:shadow-lg"
-				onclick={submit}>Submit</button
-			>
+			<Slider
+				value={2}
+				marks={[0, 25, 50, 75, 100]}
+				title="Another number"
+				description="Pick a number between 0 and 100."
+			/>
+
+			<Button variant="filled" onclick={submit} rco="w-full">Submit</Button>
 		{/snippet}
 	</Form>
 </div>

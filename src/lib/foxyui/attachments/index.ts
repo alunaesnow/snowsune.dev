@@ -3,3 +3,5 @@ export { focusTrap } from './focus-trap';
 export { hotkeys } from './hotkeys';
 export type { HotkeySet, HotkeyOptions } from './hotkeys';
 export { resize } from './resize';
+export { draggable } from './draggable';
+export type { DragCallbacks, DragStartData, DragMoveData, DragEndData } from './draggable';

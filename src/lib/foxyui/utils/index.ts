@@ -7,6 +7,11 @@ export function randomString(length = 10): string {
 	return str;
 }
 
+/** Clamps `num` between `min` and `max` */
+export function clamp(num: number, min: number, max: number) {
+	return Math.min(Math.max(num, min), max);
+}
+
 export function caughtJSONParse(text: string): unknown | null {
 	try {
 		return JSON.parse(text);

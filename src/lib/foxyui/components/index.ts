@@ -12,3 +12,4 @@ export {
 } from './overlays/ModalManager.svelte';
 export { default as Tooltip } from './overlays/Tooltip.svelte';
 export { default as SegmentedRadio } from './inputs/SegmentedRadio.svelte';
+export { default as Slider } from './inputs/Slider.svelte';
