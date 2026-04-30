@@ -39,7 +39,7 @@
 
 	let rootClasses = $derived([
 		iconOnly ? 'px-2' : 'px-3.5',
-		'rounded-md p-2 text-sm transition-colors outline-hidden ring-primary-300/90 focus-visible:ring-3 hover:no-underline inline-flex items-center',
+		'rounded-md p-2 text-sm transition-colors outline-hidden ring-primary-300/90 focus-visible:ring-3 hover:no-underline inline-flex items-center justify-center',
 		variant == 'transparent' ? '' : 'font-semibold shadow-xs',
 		disabled
 			? 'opacity-80 cursor-not-allowed'
