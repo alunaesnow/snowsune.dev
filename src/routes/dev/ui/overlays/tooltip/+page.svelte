@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Placement } from '@floating-ui/dom';
 
-	import { Button, Tooltip } from '$lib/foxyui/components';
+	import { Tooltip } from '$lib/foxyui/components';
 
 	const tooltips: { placement: Placement; icon: string }[] = [
 		{ placement: 'top-end', icon: 'icon-[mingcute--arrow-left-up-line]' },
@@ -19,7 +19,7 @@
 
 <div class="mt-10">
 	<div class="mx-auto grid w-fit grid-cols-3 grid-rows-3 gap-8">
-		{#each tooltips as tooltip}
+		{#each tooltips as tooltip, index (index)}
 			<Tooltip
 				placement={tooltip.placement}
 				text={tooltip.placement}

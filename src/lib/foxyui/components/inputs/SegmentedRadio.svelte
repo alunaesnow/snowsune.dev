@@ -1,7 +1,10 @@
 <script lang="ts" module>
-	export type SegmentedRatioEntry = {
+	export type SegmentedRadioEntry = {
+		/** Value of this entry */
 		value: string;
+		/** Label to show for this entry, if undefined the value will be used */
 		label?: string;
+		/** Icon to give this entry */
 		icon?: string;
 	};
 </script>
@@ -10,22 +13,15 @@
 	import { onMount } from 'svelte';
 	import { Tween } from 'svelte/motion';
 
-	import { getRandomId } from '$lib/foxyui/utils';
-
 	import InputFrame, { type PassableInputFrameProps } from './InputFrame.svelte';
+	import { resize } from '$lib/foxyui/attachments';
 
 	type Props = {
-		id?: string;
-		entries: SegmentedRatioEntry[];
+		entries: SegmentedRadioEntry[];
 		value?: string;
 	} & PassableInputFrameProps<string>;
 
-	let {
-		id = getRandomId(),
-		entries,
-		value = $bindable(entries[0].value),
-		...inputFrameProps
-	}: Props = $props();
+	let { entries, value = $bindable(entries[0].value), ...inputFrameProps }: Props = $props();
 
 	let selectedIndex = $derived.by(() => entries.findIndex((entry) => entry.value == value));
 
@@ -49,25 +45,27 @@
 	}
 </script>
 
-<InputFrame {id} {value} {...inputFrameProps}>
+<InputFrame {value} {...inputFrameProps}>
 	{#snippet children({ styleClasses })}
 		<div class={styleClasses} style:padding="0.25rem" style:display="inline-block">
-			<div class="relative flex" bind:this={track}>
+			<div class="relative flex" bind:this={track} {@attach resize(() => updatePill(true))}>
 				<div
 					style:width={pillValues.current.width + 'px'}
 					style:height={pillValues.current.height + 'px'}
 					style:transform={`translateX(${pillValues.current.translateX}px)`}
-					class=" absolute top-0 left-0 h-5 rounded-md bg-white shadow-none"
+					class="absolute top-0 left-0 h-5 rounded-md bg-white shadow-none"
 				></div>
 				{#each entries as entry, i (entry.value)}
 					<button
-						class={' ring-opacity-90 ring-primary-300 relative z-2 grow rounded-md border-l p-1.5 px-3 text-sm font-medium outline-hidden transition-colors focus-visible:ring ' +
-							(selectedIndex == i
+						class={[
+							'ring-opacity-90 relative z-2 grow rounded-md border-l p-1.5 px-3 text-sm font-medium ring-primary-300 outline-hidden transition-colors focus-visible:ring-3',
+							entry.icon && 'flex items-center justify-center',
+							selectedIndex == i
 								? 'border-gray-100'
 								: i > 0 && i != selectedIndex + 1
 									? 'border-gray-200 text-gray-500'
-									: 'border-gray-100 text-gray-500') +
-							(entry.icon ? ' flex items-center justify-center' : '')}
+									: 'border-gray-100 text-gray-500'
+						]}
 						onclick={(ev) => {
 							ev.stopPropagation();
 							value = entry.value;

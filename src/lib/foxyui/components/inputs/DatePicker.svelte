@@ -1,32 +1,23 @@
 <script lang="ts">
-	import { getRandomId } from '$lib/foxyui/utils';
-
 	import { Floater } from '..';
 	import InputFrame from './InputFrame.svelte';
 	import type { PassableInputFrameProps } from './InputFrame.svelte';
 
 	type Props = {
-		id?: string;
 		value?: Date;
 		onchange?: (value: Date) => void;
 		placeholder?: string;
 	} & PassableInputFrameProps<Date | undefined>;
 
-	let {
-		id = getRandomId(),
-		value = $bindable(undefined),
-		onchange,
-		placeholder,
-		invalid,
-		...inputFrameProps
-	}: Props = $props();
+	let { value = $bindable(undefined), onchange, placeholder, ...inputFrameProps }: Props = $props();
 
 	let pickerMode: 'day' | 'month' = $state('day');
 	let floaterOpen = $state(false);
 
-	let viewed = $state(value ?? new Date());
+	let viewed = $state.raw(value ?? new Date());
 
 	let renderDetails = $derived.by(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
 		let clone = new Date(viewed.getTime());
 		clone.setDate(1);
 		let prevCount = Math.max(clone.getDay() - 1, 0);
@@ -81,8 +72,8 @@
 	let buttonclass = 'p-2 text-center hover:bg-blue-500 hover:text-white rounded-sm cursor-pointer';
 </script>
 
-<InputFrame {id} {value} {invalid} {...inputFrameProps}>
-	{#snippet children({ styleClasses })}
+<InputFrame {value} {...inputFrameProps}>
+	{#snippet children({ styleClasses, invalid })}
 		<Floater
 			bind:open={floaterOpen}
 			onchange={(open) => {
@@ -104,7 +95,7 @@
 							onclick={prevButton}
 							class="rounded-sm p-2 py-1 text-xl hover:bg-gray-50"
 						>
-							<span class="i-[mingcute--left-line] translate-y-0.5"></span>
+							<span class="icon-[mingcute--left-line] translate-y-0.5"></span>
 						</button>
 						<button onclick={modeButton} class="grow rounded-sm p-2 text-center hover:bg-gray-50">
 							{#if pickerMode == 'day'}
@@ -118,12 +109,12 @@
 							onclick={nextButton}
 							class="rounded-sm p-2 py-1 text-xl hover:bg-gray-50"
 						>
-							<span class="i-[mingcute--right-line] translate-y-0.5"></span>
+							<span class="icon-[mingcute--right-line] translate-y-0.5"></span>
 						</button>
 					</div>
 					{#if pickerMode == 'day'}
 						<div class="grid grid-cols-7 grid-rows-6 text-sm">
-							{#each ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'] as day}
+							{#each ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'] as day (day)}
 								<span class="p-2 text-center text-gray-400">{day}</span>
 							{/each}
 							{#each { length: renderDetails.prevCount }, preDay}
@@ -150,7 +141,7 @@
 						</div>
 					{:else if pickerMode == 'month'}
 						<div class="mt-2 grid grid-cols-3 grid-rows-4 text-sm">
-							{#each ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'] as month, index}
+							{#each ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'] as month, index (month)}
 								<button
 									onclick={() => pickMonth(index)}
 									class={'rounded-sm p-2 px-7 text-gray-800 ' +
@@ -167,7 +158,7 @@
 			{/snippet}
 
 			<button class={styleClasses}>
-				<span class="i-[mingcute--calendar-2-line] mr-2 text-base"></span>
+				<span class="mr-2 icon-[mingcute--calendar-2-line] text-base"></span>
 				<span class={invalid ? ' text-red-400' : ''}>
 					{#if value}
 						{value.toLocaleDateString()}

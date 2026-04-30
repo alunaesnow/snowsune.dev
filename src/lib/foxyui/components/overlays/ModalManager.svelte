@@ -48,7 +48,7 @@
 	import { quintInOut } from 'svelte/easing';
 	import { fade, scale } from 'svelte/transition';
 
-	import { getRandomId } from '$lib/foxyui/utils';
+	import { randomString } from '$lib/foxyui/utils';
 	import { clickOutside, focusTrap, hotkeys } from '$lib/foxyui/attachments';
 
 	let { children }: ModalManagerProps = $props();
@@ -58,7 +58,7 @@
 			closeOnClickOutside: opts.closeOnClickOutside ?? true,
 			closeOnEscape: opts.closeOnEscape ?? true,
 			trapFocus: opts.trapFocus ?? true,
-			rootId: opts.rootId ?? getRandomId(),
+			rootId: opts.rootId ?? randomString(),
 			force: opts.force ?? false
 		};
 	}

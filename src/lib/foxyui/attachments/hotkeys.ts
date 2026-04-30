@@ -22,6 +22,7 @@ export type HotkeySet = [string, (event: KeyboardEvent) => void, Partial<HotkeyO
  * - `ArrowLeft,ArrowRight` – use commas to specify multiple keybinds
  * - `mod+S` – detects ⌘+S on macOS and Ctrl+S on Windows and Linux
  * - `alt + shift + L` – whitespace is allowed
+ * - For the space key use `Space`
  *
  * @param gloablOptions See type HotkeyOptions.
  *

@@ -1,22 +1,25 @@
 <script lang="ts">
-	import { getRandomId } from '$lib/foxyui/utils';
-
 	import InputFrame, { type PassableInputFrameProps } from './InputFrame.svelte';
 
 	type Props = {
-		id?: string;
 		value?: number;
+		/** Maximum allowed value. */
 		max?: number;
+		/** Minimum allowed value. */
 		min?: number;
+		/** Step size when using the increment / decrement arrows. */
 		step?: number;
+		/** Placeholder text. */
 		placeholder?: string;
+		/** Classes to add to the root element. */
 		rco?: string;
+		/** Whether to hide the increment / decrement arrows */
 		hidearrows?: boolean;
+		/** Whether to try automatically adjust the width of the input to match its contents */
 		autosize?: boolean;
 	} & PassableInputFrameProps<number | undefined>;
 
 	let {
-		id = getRandomId(),
 		value = $bindable(undefined),
 		placeholder,
 		max,
@@ -81,6 +84,7 @@
 		}
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	function onchange(ev: any) {
 		let valueStr: string = ev.target.value;
 		let num = parseInt(valueStr);
@@ -92,12 +96,12 @@
 	}
 </script>
 
-<InputFrame {id} inputId={id} {value} {autoValidator} {...inputFrameProps}>
-	{#snippet children({ styleClasses })}
-		<div class={'relative inline-block w-full text-sm ' + (rco ?? '')}>
+<InputFrame label {value} {autoValidator} {...inputFrameProps}>
+	{#snippet children({ styleClasses, inputId })}
+		<div class={['relative inline-block w-full text-sm', rco]}>
 			<input
 				type="number"
-				{id}
+				id={inputId}
 				{max}
 				{min}
 				{step}
@@ -119,7 +123,7 @@
 						onclick={increment}
 						class="rounded-tr-lg rounded-bl hover:bg-white"
 					>
-						<span class="i-[mingcute--up-line] translate-y-0.5"></span>
+						<span class="icon-[mingcute--up-line] translate-y-0.5"></span>
 					</button>
 					<button
 						tabindex="-1"
@@ -127,7 +131,7 @@
 						onclick={decrement}
 						class="rounded-tl rounded-br-lg hover:bg-white"
 					>
-						<span class="i-[mingcute--down-line] translate-y-px"></span>
+						<span class="icon-[mingcute--down-line] translate-y-px"></span>
 					</button>
 				</div>
 			{/if}

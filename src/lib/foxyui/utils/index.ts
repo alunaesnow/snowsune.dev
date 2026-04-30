@@ -1,12 +1,10 @@
-export function getRandomId(length = 10): string {
-	let randomId = 'foxyui-';
-	const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-
+const ALPHANUMERIC = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+export function randomString(length = 10): string {
+	let str = '';
 	for (let i = 0; i < length; i++) {
-		randomId += chars.charAt(Math.floor(Math.random() * chars.length));
+		str += ALPHANUMERIC.charAt(Math.floor(Math.random() * ALPHANUMERIC.length));
 	}
-
-	return randomId;
+	return str;
 }
 
 export function caughtJSONParse(text: string): unknown | null {

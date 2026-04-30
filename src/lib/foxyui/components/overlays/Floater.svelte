@@ -106,7 +106,7 @@
 	import { fly } from 'svelte/transition';
 
 	import { clickOutside, focusTrap as focusTrapAttachment, hotkeys } from '$lib/foxyui/attachments';
-	import { getRandomId } from '$lib/foxyui/utils';
+	import { randomString } from '$lib/foxyui/utils';
 
 	let {
 		open = $bindable(false),
@@ -129,8 +129,8 @@
 	let rootEl: HTMLElement | null = $state(null);
 	let floaterEl: HTMLElement | null = $state(null);
 	let arrowEl: HTMLElement | null = $state(null);
-	let floaterId = getRandomId();
-	let targetId = getRandomId();
+	let floaterId = randomString();
+	let targetId = randomString();
 
 	let opts = $derived(defaultMiddlewareOptions(middlewares));
 	let builtMiddleware = $derived(buildMiddlewares(opts, arrowEl));

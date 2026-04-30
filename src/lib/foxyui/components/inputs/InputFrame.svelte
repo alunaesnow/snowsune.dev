@@ -1,60 +1,63 @@
 <script lang="ts" module>
 	export type PassableInputFrameProps<T> = {
-		/** title to show above the input */
+		/** Id of the input, used for the form if one is present. If left undefined
+		 * a random id will be generated.
+		 */
+		id?: string;
+		/** Title to show above the input. */
 		title?: string;
-		/** description to show above the input */
+		/** Description to show above the input. */
 		description?: string;
-		/** if the input is valid, this prop is bindable */
+		/** If the input is valid, this prop is bindable. */
 		invalid?: boolean;
-		/** inline inputs dont display titles descriptions or error messages */
+		/** Inline inputs dont display titles descriptions or error messages. */
 		inline?: boolean;
-		/** if this input is required to have a value.
+		/** If this input is required to have a value.
 		 * enables validation accordingly, if this prop is a
-		 * string it will be used as a custom error message */
+		 * string it will be used as a custom error message. */
 		required?: string | boolean;
-		/** function used to validate input, should return nothing if the
-		 * input is valid, or a string describing the error if invalid */
+		/** Function used to validate input, should return nothing if the
+		 * input is valid, or a string describing the error if invalid. */
 		validator?: (value: T) => string | undefined;
-		/** whether to run the validator live.
+		/** Whether to run the validator live.
 		 * i.e. each time the value changes,
-		 * as opposed to on form submission */
+		 * as opposed to on form submission. */
 		liveValidate?: boolean;
-		/** triggers when the value changes */
+		/** Triggers when the value changes, regardless of validity. */
 		onchange?: (value: T) => void;
-		/** triggers when the value changes and is valid,
-		 * ONLY IF live validation is enabled */
+		/** Triggers when the value changes and is valid,
+		 * ONLY IF live validation is enabled. */
 		onvalidchange?: (value: T) => void;
-		/** triggers when the value changes and is invalid,
-		 * ONLY IF live validation is enabled */
+		/** Triggers when the value changes and is invalid,
+		 * ONLY IF live validation is enabled. */
 		oninvalidchange?: (value: T) => void;
 	};
 </script>
 
 <script lang="ts" generics="T">
-	import { type Snippet, onMount, untrack } from 'svelte';
+	import { type Snippet, onMount } from 'svelte';
 
 	import { useExplicitEffect } from '$lib/foxyui/hooks';
 
 	import { getFormContext } from './Form.svelte';
+	import { randomString } from '$lib/foxyui/utils';
 
 	type Props = {
-		/** id of the input, used for the form, if one is present */
-		id: string;
-		/** id of the actual <input> element, used as a target for the label */
-		inputId?: string;
 		value: T;
-		/** auto validator function, will be run along with the passable validator */
+		children: Snippet<[{ styleClasses: string[]; inputId: string; invalid: boolean }]>;
+		/** If to use a <label> element for the title. Defaults to false. */
+		label?: boolean;
+		/** Auto validator function, will be run along with the passable validator. */
 		autoValidator?: (value: T) => string | undefined;
-		children: Snippet<[{ styleClasses: string }]>;
 	} & PassableInputFrameProps<T>;
 
 	let {
 		// non-passable props
-		id,
-		inputId,
 		value,
-		autoValidator,
 		children,
+		id = randomString(8),
+		label = false,
+		autoValidator,
 		// passable props
 		title,
 		description,
@@ -68,21 +71,18 @@
 		oninvalidchange
 	}: Props = $props();
 
+	let inputId = $derived(`${id}-${randomString(5)}`);
+
 	let form = getFormContext();
 
 	let error: string | undefined = $state(undefined);
 
-	let styleClasses = $derived.by(() => {
-		let str =
-			'inline-flex w-full text-base items-center rounded-lg bg-gray-100 p-2 px-3.5 outline-hidden';
-		if (!invalid) {
-			str +=
-				' text-gray-700 focus-visible:border-primary-500 focus-visible:ring-3 ring-primary-300/90';
-		} else {
-			str += ' text-red-500 border-red-500 border placeholder:text-red-300 ring-3 ring-red-300/90';
-		}
-		return str;
-	});
+	let styleClasses = $derived([
+		'inline-flex w-full text-base items-center rounded-lg bg-gray-100 p-2 px-3.5 outline-hidden',
+		invalid
+			? 'text-red-500 border-red-500 border placeholder:text-red-300 ring-3 ring-red-300/90'
+			: 'text-gray-700 focus-visible:border-primary-500 focus-visible:ring-3 ring-primary-300/90'
+	]);
 
 	let modifiedValidator = $derived.by(() => {
 		if (required || autoValidator) {
@@ -159,7 +159,7 @@
 	{#if title && !inline}
 		<div class="mb-1">
 			<svelte:element
-				this={inputId ? 'label' : 'p'}
+				this={label ? 'label' : 'p'}
 				class="text-sm font-medium text-gray-800"
 				for={inputId}
 			>
@@ -170,7 +170,7 @@
 			{/if}
 		</div>
 	{/if}
-	{@render children({ styleClasses })}
+	{@render children({ styleClasses, inputId, invalid })}
 	{#if invalid && error && !inline}
 		<p class="mt-1 text-xs text-red-500">{error}</p>
 	{/if}

@@ -1,5 +1,6 @@
 <script lang="ts" module>
 	type InputFunctions = {
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		getValue(): any;
 		setError(message?: string): void;
 		clearError(): void;

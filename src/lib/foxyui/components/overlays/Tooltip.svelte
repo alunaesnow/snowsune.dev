@@ -2,7 +2,7 @@
 	import type { Placement } from '@floating-ui/dom';
 	import type { Snippet } from 'svelte';
 
-	import { getRandomId } from '$lib/foxyui/utils';
+	import { randomString } from '$lib/foxyui/utils';
 
 	export type TooltipProps = {
 		/** Text to show on the tooltip */
@@ -59,7 +59,7 @@
 	let rootEl: HTMLElement | null;
 	let floaterEl: HTMLElement | null = $state(null);
 	let arrowEl: HTMLElement | null = $state(null);
-	let floaterId = getRandomId();
+	let floaterId = randomString();
 
 	let opts = $derived(defaultMiddlewareOptions(middleware));
 	let builtMiddleware = $derived(buildMiddlewares(opts, arrowEl));
