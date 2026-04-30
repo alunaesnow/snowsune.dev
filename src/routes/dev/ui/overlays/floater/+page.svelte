@@ -4,10 +4,10 @@
 	import { Button, Floater } from '$lib/foxyui/components';
 
 	const floaters: { placement: Placement; icon: string }[] = [
-		{ placement: 'top', icon: 'i-[mingcute--arrow-up-line]' },
-		{ placement: 'left', icon: 'i-[mingcute--arrow-left-line]' },
-		{ placement: 'right', icon: 'i-[mingcute--arrow-right-line]' },
-		{ placement: 'bottom', icon: 'i-[mingcute--arrow-down-line]' }
+		{ placement: 'top', icon: 'icon-[mingcute--arrow-up-line]' },
+		{ placement: 'left', icon: 'icon-[mingcute--arrow-left-line]' },
+		{ placement: 'right', icon: 'icon-[mingcute--arrow-right-line]' },
+		{ placement: 'bottom', icon: 'icon-[mingcute--arrow-down-line]' }
 	];
 
 	let openA = $state(false);

@@ -7,6 +7,8 @@ import { on } from 'svelte/events';
  * @param fn - Will be run whenever a mousedown event happens outside the target
  * element's node tree.
  *
+ * @param extraElements - Extra elements that must be clicked outside.
+ *
  * ## Examples
  * @example
  * ```svelte
@@ -15,12 +17,15 @@ import { on } from 'svelte/events';
  * </div>
  * ```
  */
-export function clickOutside(fn: () => void): (element: HTMLElement) => () => void {
+export function clickOutside(
+	fn: () => void,
+	...extraElements: (HTMLElement | null)[]
+): (element: HTMLElement) => () => void {
 	return (element: HTMLElement): (() => void) => {
 		const handleClick = (event: MouseEvent) => {
 			const path = event.composedPath();
 
-			if (!path.includes(element)) {
+			if (!path.includes(element) && !extraElements.some((el) => el && path.includes(el))) {
 				fn();
 			}
 		};

@@ -4,16 +4,16 @@
 	import { Button, Tooltip } from '$lib/foxyui/components';
 
 	const tooltips: { placement: Placement; icon: string }[] = [
-		{ placement: 'top-end', icon: 'i-[mingcute--arrow-left-up-line]' },
-		{ placement: 'top', icon: 'i-[mingcute--arrow-up-line]' },
-		{ placement: 'top-start', icon: 'i-[mingcute--arrow-right-up-line]' },
-		{ placement: 'left', icon: 'i-[mingcute--arrow-left-line]' },
+		{ placement: 'top-end', icon: 'icon-[mingcute--arrow-left-up-line]' },
+		{ placement: 'top', icon: 'icon-[mingcute--arrow-up-line]' },
+		{ placement: 'top-start', icon: 'icon-[mingcute--arrow-right-up-line]' },
+		{ placement: 'left', icon: 'icon-[mingcute--arrow-left-line]' },
 		// spacer
-		{ placement: 'right-end', icon: 'i-[mingcute--question-line]' },
-		{ placement: 'right', icon: 'i-[mingcute--arrow-right-line]' },
-		{ placement: 'bottom-end', icon: 'i-[mingcute--arrow-left-down-line]' },
-		{ placement: 'bottom', icon: 'i-[mingcute--arrow-down-line]' },
-		{ placement: 'bottom-start', icon: 'i-[mingcute--arrow-right-down-line]' }
+		{ placement: 'right-end', icon: 'icon-[mingcute--question-line]' },
+		{ placement: 'right', icon: 'icon-[mingcute--arrow-right-line]' },
+		{ placement: 'bottom-end', icon: 'icon-[mingcute--arrow-left-down-line]' },
+		{ placement: 'bottom', icon: 'icon-[mingcute--arrow-down-line]' },
+		{ placement: 'bottom-start', icon: 'icon-[mingcute--arrow-right-down-line]' }
 	];
 </script>
 
@@ -37,11 +37,5 @@
 		class="bg-gray-100 px-2"
 	>
 		<p>Very very long tooltip</p>
-	</Tooltip>
-</div>
-
-<div class="mt-10">
-	<Tooltip text="0xB15fB873aE4e97567f2051C9994a8C2676749eb9" class="bg-gray-100 px-2">
-		<p>Hex address</p>
 	</Tooltip>
 </div>

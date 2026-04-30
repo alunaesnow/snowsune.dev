@@ -1,39 +1,31 @@
 <script lang="ts" module>
-	import type {
-		FlipOptions,
-		InlineOptions,
-		OffsetOptions,
-		Placement,
-		ShiftOptions
-	} from '@floating-ui/dom';
+	import type { Placement } from '@floating-ui/dom';
 	import type { Snippet } from 'svelte';
 
 	import { getRandomId } from '$lib/foxyui/utils';
 
-	export type FloaterMiddlewareOptions = {
-		offset?: number | OffsetOptions;
-		shift?: boolean | ShiftOptions;
-		flip?: boolean | FlipOptions;
-		inline?: boolean | InlineOptions;
-		arrowSize?: number;
-		arrowPadding?: number;
-		arrowRadius?: number;
-	};
-
 	export type TooltipProps = {
+		/** Text to show on the tooltip */
 		text: string;
+		/** Contents of the trigger / root element. */
 		children: Snippet;
+		/** Whether the floater is open, bindable.*/
 		open?: boolean;
+		/** What type the trigger/root element would be, default "div". */
 		rootElement?: string;
+		/** Placement of the floater (floating-ui palcements). */
 		placement?: Placement;
-		middleware?: FloaterMiddlewareOptions;
+		/** Middleware options */
+		middleware?: MiddlewaresProp;
+		/** If the tooltip is displayed for an icon, it may need to be offset slightly to
+		 * display at the correct height. Set this prop to true to do that.
+		 */
 		correctForIcon?: boolean;
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		[key: string]: any;
 	};
 
-	function defaultMiddlewareOptions(
-		opts: FloaterMiddlewareOptions
-	): Required<FloaterMiddlewareOptions> {
+	function defaultMiddlewareOptions(opts: MiddlewaresProp): Required<MiddlewaresProp> {
 		let arrowSize = opts.arrowSize ?? 8;
 		return {
 			offset: opts.offset ?? 8,
@@ -42,22 +34,16 @@
 			inline: opts.inline ?? true,
 			arrowSize,
 			arrowPadding: opts.arrowPadding ?? arrowSize / 2,
-			arrowRadius: opts.arrowRadius ?? 2
+			arrowRadius: opts.arrowRadius ?? 2,
+			extras: []
 		};
 	}
 </script>
 
 <script lang="ts">
-	import {
-		arrow,
-		autoUpdate,
-		computePosition,
-		flip,
-		inline,
-		offset,
-		shift
-	} from '@floating-ui/dom';
+	import { autoUpdate, computePosition } from '@floating-ui/dom';
 	import { fly } from 'svelte/transition';
+	import { type MiddlewaresProp, buildMiddlewares } from './Floater.svelte';
 
 	let {
 		open = false,
@@ -76,25 +62,7 @@
 	let floaterId = getRandomId();
 
 	let opts = $derived(defaultMiddlewareOptions(middleware));
-	let builtMiddleware = $derived.by(() => {
-		const a = [];
-		if (opts.offset !== 0) {
-			a.push(offset(opts.offset));
-		}
-		if (opts.shift !== false) {
-			a.push(shift(opts.shift === true ? undefined : opts.shift));
-		}
-		if (opts.flip !== false) {
-			a.push(flip(opts.flip === true ? undefined : opts.flip));
-		}
-		if (opts.inline !== false) {
-			a.push(inline(opts.inline === true ? undefined : opts.inline));
-		}
-		if (arrowEl && opts.arrowSize != 0 && arrow) {
-			a.push(arrow({ element: arrowEl, padding: opts.arrowPadding }));
-		}
-		return a;
-	});
+	let builtMiddleware = $derived(buildMiddlewares(opts, arrowEl));
 
 	$effect(() => {
 		if (floaterEl && rootEl) {
@@ -159,7 +127,6 @@
 	}
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
 <svelte:element
 	this={rootElement}
 	onmouseenter={() => (open = true)}
