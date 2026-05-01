@@ -45,7 +45,7 @@ struct PolytopeWasm {
     /// Like a quaternion, this holds the rotation of the 4D object
     rotor: Option<Rotor4>,
 
-    needs_pdate: bool,
+    needs_update: bool,
 }
 
 enum Indices {
@@ -120,12 +120,12 @@ impl PolytopeWasm {
             world_axes: Array2::<f32>::eye(4),
             rotation_frame: RotationFrame::WorldAxes,
             rotor: None,
-            needs_pdate: true,
+            needs_update: true,
         }
     }
 
     pub fn update(&mut self) -> bool {
-        if !self.needs_pdate {
+        if !self.needs_update {
             return false;
         }
 
@@ -136,18 +136,19 @@ impl PolytopeWasm {
                     self.rdat.rotation_matrix[i * 4 + j] = rot_mat[[i, j]];
                 }
             }
+        } else {
+            for i in 0..4 {
+                for j in 0..4 {
+                    self.rdat.rotation_matrix[i * 4 + j] = if i == j { 1.0 } else { 0.0 };
+                }
+            }
         }
-        // for i in 0..4 {
-        //     for j in 0..4 {
-        //         self.rdat.rotation_matrix[i * 4 + j] = self.rot_mat[[i, j]];
-        //     }
-        // }
 
         return true;
     }
 
     pub fn rotate(&mut self, theta: f32, axes1: usize, axes2: usize) {
-        if theta < 1e-15 {
+        if theta.abs() < 1e-15 {
             return;
         }
 
@@ -173,7 +174,12 @@ impl PolytopeWasm {
 
         // self.rot_mat = rotor.rotation_matrix.dot(&self.rot_mat);
 
-        self.needs_pdate = true;
+        self.needs_update = true;
+    }
+
+    pub fn resetRotation(&mut self) {
+        self.rotor = None;
+        self.needs_update = true;
     }
 
     pub fn set_rotation_frame(&mut self, rotation_frame: RotationFrame) {

@@ -16,6 +16,8 @@
 		fillFrom?: 'start' | 'end' | 'zero';
 		/** Values at which to display a mark */
 		marks?: number[];
+		/** Triggers every time the slider stops changing value */
+		onchangeend?: (value: number) => void;
 	} & PassableInputFrameProps<number>;
 
 	let {
@@ -25,6 +27,7 @@
 		step = (max - min) / 100,
 		fillFrom = 'start',
 		marks = [],
+		onchangeend,
 		...inputFrameProps
 	}: Props = $props();
 
@@ -64,7 +67,8 @@
 				bind:this={track}
 				{@attach draggable({
 					start: handleDragStart,
-					move: handleDrag
+					move: handleDrag,
+					end: () => onchangeend?.(value)
 				})}
 			>
 				<!-- part: thumb -->
